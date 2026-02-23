@@ -418,14 +418,14 @@ class TestVisionFallback:
         self,
         mock_page: AsyncMock,
     ) -> None:
-        """Empty ANTHROPIC_API_KEY returns None (skips API call)."""
+        """Empty OPENROUTER_API_KEY returns None (skips API call)."""
         from src.scraper.vision_fallback import scrape_via_vision
         from src.config import settings
 
         mock_page.goto = AsyncMock()
         mock_page.screenshot = AsyncMock(return_value=b"fake-screenshot-bytes")
 
-        with patch.object(settings, "ANTHROPIC_API_KEY", ""):
+        with patch.object(settings, "OPENROUTER_API_KEY", ""):
             result = await scrape_via_vision(mock_page, "sv1-25", "https://example.com")
 
         assert result is None
@@ -461,7 +461,7 @@ class TestVisionFallback:
         mock_client.messages.create = AsyncMock(return_value=mock_message)
 
         with patch("anthropic.AsyncAnthropic", return_value=mock_client):
-            with patch.object(settings, "ANTHROPIC_API_KEY", "test-key"):
+            with patch.object(settings, "OPENROUTER_API_KEY", "test-key"):
                 result = await scrape_via_vision(mock_page, "sv1-25", "https://example.com")
 
         assert result is not None
@@ -489,7 +489,7 @@ class TestVisionFallback:
         mock_client.messages.create = AsyncMock(return_value=mock_message)
 
         with patch("anthropic.AsyncAnthropic", return_value=mock_client):
-            with patch.object(settings, "ANTHROPIC_API_KEY", "test-key"):
+            with patch.object(settings, "OPENROUTER_API_KEY", "test-key"):
                 result = await scrape_via_vision(mock_page, "sv1-25", "https://example.com")
 
         assert result is None
@@ -512,7 +512,7 @@ class TestVisionFallback:
         mock_client.messages.create = AsyncMock(return_value=mock_message)
 
         with patch("anthropic.AsyncAnthropic", return_value=mock_client):
-            with patch.object(settings, "ANTHROPIC_API_KEY", "test-key"):
+            with patch.object(settings, "OPENROUTER_API_KEY", "test-key"):
                 result = await scrape_via_vision(mock_page, "sv1-25", "https://example.com")
 
         assert result is not None

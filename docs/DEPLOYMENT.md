@@ -205,7 +205,7 @@ All variables are read from `.env` at startup. See `.env.example` for a template
 - If empty: `get_current_forex_rate()` returns static `EUR_USD_RATE` config value
 - No penalty for being empty; fallback is safe for production
 
-**ANTHROPIC_API_KEY** (optional, Phase 3+)
+**OPENROUTER_API_KEY** (optional, Phase 3+)
 - Anthropic API key for vision fallback scraping
 - Used only if Layer 3 scraping fails CSS extraction and network interception
 - Leave empty to skip vision fallback; system will log a failure and move on
@@ -667,7 +667,7 @@ If Layer 3 scraping is enabled, the system follows this fallback chain:
 3. **Vision/AI (EMERGENCY — Phase 3)**
    - Take screenshot and use vision model to extract prices
    - Used only if both above methods fail
-   - Requires ANTHROPIC_API_KEY
+   - Requires OPENROUTER_API_KEY
    - Slowest, may not be accurate
 
 The scheduler logs which method succeeded for each scrape job.
@@ -686,7 +686,7 @@ Before deploying TCG Radar to production:
 - [ ] DISCORD_BOT_TOKEN — Set if Discord delivery enabled
 - [ ] TWITTER_BEARER_TOKEN — Set if social monitoring enabled
 - [ ] EXCHANGERATE_API_KEY — Set if live forex rates needed (or falling back to EUR_USD_RATE)
-- [ ] ANTHROPIC_API_KEY — Set if vision fallback needed (Phase 3)
+- [ ] OPENROUTER_API_KEY — Set if vision fallback needed (Phase 3)
 
 ### Database
 

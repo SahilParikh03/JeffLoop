@@ -98,7 +98,7 @@ class Settings(BaseSettings):
     # -----------------------------------------------------------------------
     # Phase 3 — Vision Fallback (Claude Vision API)
     # -----------------------------------------------------------------------
-    ANTHROPIC_API_KEY: str = ""             # Anthropic API key for vision fallback
+    OPENROUTER_API_KEY: str = ""            # OpenRouter API key for vision fallback
     VISION_MODEL_ID: str = "claude-opus-4-6"  # Model for screenshot extraction
 
     # -----------------------------------------------------------------------

@@ -29,7 +29,7 @@
 - Phase 3 stub replaced with full Claude Vision implementation
 - Base64 screenshot → `anthropic.AsyncAnthropic.messages.create` with image block
 - SECURITY: Only image bytes sent — NO DOM text (CVE-2026-25253 boundary preserved)
-- Uses `settings.VISION_MODEL_ID` and `settings.ANTHROPIC_API_KEY`
+- Uses `settings.VISION_MODEL_ID` and `settings.OPENROUTER_API_KEY`
 - Returns `ScraperResult(scrape_method="vision")` on success
 - Graceful: API key guard, JSON parse error catch, all fields null-safe
 - `anthropic>=0.40.0` added to `[project] dependencies` in pyproject.toml

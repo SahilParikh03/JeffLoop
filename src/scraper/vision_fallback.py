@@ -68,7 +68,7 @@ async def scrape_via_vision(
 
         # Guard: no API key configured
         from src.config import settings
-        if not settings.ANTHROPIC_API_KEY:
+        if not settings.OPENROUTER_API_KEY:
             logger.warning(
                 "vision_fallback_no_api_key",
                 card_id=card_id,
@@ -81,7 +81,7 @@ async def scrape_via_vision(
 
         # Call Claude Vision API
         # SECURITY: Only screenshot_bytes (image) sent — NO DOM text, NO seller descriptions
-        client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+        client = anthropic.AsyncAnthropic(api_key=settings.OPENROUTER_API_KEY)
         response = await client.messages.create(
             model=settings.VISION_MODEL_ID,
             max_tokens=256,
