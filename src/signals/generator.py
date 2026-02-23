@@ -27,7 +27,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.config import settings
-from src.engine.bundle import calculate_seller_density_score
+from src.engine.bundle import BundleResult, BundleTier, calculate_seller_density_score
 from src.engine.headache import calculate_headache_score
 from src.engine.maturity import calculate_maturity_decay
 from src.engine.price_trend import get_7day_trend
@@ -125,7 +125,7 @@ class SignalGenerator:
                         profit = calculate_net_profit(
                             cm_price_eur=price.price_eur,
                             tcg_price_usd=price.price_usd,
-                            forex_rate=get_current_forex_rate(),
+                            forex_rate=await get_current_forex_rate(),
                             condition=condition_grade.value,
                             customs_regime=settings.CUSTOMS_REGIME.value,
                         )
@@ -183,14 +183,21 @@ class SignalGenerator:
                         filter_counts["headache"] += 1
 
                         # 10. BUNDLE LOGIC (Section 4.5)
-                        # SDS remains 1 for non-scraped cards (correct behavior per spec)
-                        bundle_result = calculate_seller_density_score(
-                            seller_card_count=1,
-                            card_price_usd=price.price_usd,
-                            net_profit=profit["net_profit"],
-                        )
-                        if bundle_result.suppress:
-                            continue
+                        if settings.ENABLE_BUNDLE_LOGIC:
+                            bundle_result = calculate_seller_density_score(
+                                seller_card_count=1,
+                                card_price_usd=price.price_usd,
+                                net_profit=profit["net_profit"],
+                            )
+                            if bundle_result.suppress:
+                                continue
+                        else:
+                            bundle_result = BundleResult(
+                                sds=1,
+                                tier=BundleTier.SINGLE_CARD,
+                                suppress=False,
+                                reason="bundle_logic_disabled",
+                            )
                         filter_counts["bundle"] += 1
 
                         # Build deep links

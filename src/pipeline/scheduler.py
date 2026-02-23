@@ -21,6 +21,7 @@ import structlog
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 
 from src.config import settings
+from src.pipeline.ebay import eBayClient
 from src.pipeline.justtcg import JustTCGClient
 from src.pipeline.pokemontcg import PokemonTCGClient
 from src.pipeline.poketrace import PokeTraceClient
@@ -55,6 +56,10 @@ class Scheduler:
 
         self._poketrace_last_poll: datetime = datetime.now(timezone.utc)
         self._poketrace_cadence_minutes = settings.POKETRACE_POLL_INTERVAL_HOURS * 60
+
+        # eBay polling (optional — only active when EBAY_APP_ID is set)
+        self._ebay_last_poll: datetime = datetime.now(timezone.utc)
+        self._ebay_cadence_minutes = settings.EBAY_POLL_INTERVAL_HOURS * 60
 
         # Social spike tracking: card_id -> (spike_start, spike_revert_time)
         self._social_spikes: dict[str, datetime] = {}
@@ -233,6 +238,72 @@ class Scheduler:
         )
         return rowcount
 
+    def _should_poll_ebay(self) -> bool:
+        """Check if eBay poll window has elapsed. Only active when credentials set."""
+        if not settings.EBAY_APP_ID:
+            return False
+        now = datetime.now(timezone.utc)
+        elapsed_minutes = (now - self._ebay_last_poll).total_seconds() / 60
+        return elapsed_minutes >= self._ebay_cadence_minutes
+
+    async def _poll_ebay(self) -> int:
+        """
+        Fetch and store market prices from eBay Browse API.
+
+        Queries the DB for cards with recent JustTCG prices and supplements
+        them with eBay median prices. Only runs when EBAY_APP_ID is configured.
+
+        Returns:
+            Number of eBay price records upserted.
+        """
+        logger.info("scheduler_ebay_poll_start")
+        rowcount = 0
+
+        async with self.session_factory() as session:
+            async with eBayClient(self.session_factory) as client:
+                # Fetch eBay prices for popular sets (same set list as JustTCG)
+                from sqlalchemy import text as sa_text
+
+                try:
+                    # Query DB for distinct card names from market_prices (source=justtcg)
+                    result = await session.execute(
+                        sa_text(
+                            "SELECT card_id FROM market_prices "
+                            "WHERE source = 'justtcg' "
+                            "ORDER BY last_updated DESC LIMIT 50"
+                        )
+                    )
+                    card_ids = [row[0] for row in result.fetchall()]
+                except Exception as e:
+                    logger.error(
+                        "scheduler_ebay_card_query_failed",
+                        error=str(e),
+                    )
+                    card_ids = []
+
+                for card_id in card_ids:
+                    try:
+                        # Use card_id as search term (pokemontcg.io format: sv1-1)
+                        price = await client.get_market_price(card_id, card_id)
+                        if price is not None:
+                            await client.store_price(card_id, price, session)
+                            rowcount += 1
+                    except Exception as e:
+                        logger.error(
+                            "scheduler_ebay_card_failed",
+                            card_id=card_id,
+                            error=str(e),
+                        )
+
+        self._ebay_last_poll = datetime.now(timezone.utc)
+
+        logger.info(
+            "scheduler_ebay_poll_complete",
+            rowcount=rowcount,
+            next_poll_in_hours=settings.EBAY_POLL_INTERVAL_HOURS,
+        )
+        return rowcount
+
     def _should_scan_signals(self) -> bool:
         """Check if signal scan window has elapsed."""
         if self.signal_generator is None:
@@ -307,6 +378,9 @@ class Scheduler:
 
                     if self._should_poll_poketrace():
                         await self._poll_poketrace()
+
+                    if self._should_poll_ebay():
+                        await self._poll_ebay()
 
                     if self._should_scan_signals():
                         await self._scan_signals()

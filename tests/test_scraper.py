@@ -243,6 +243,13 @@ class TestCSSFallbackParsing:
 # ---------------------------------------------------------------------------
 
 class TestScraperRunner:
+    @pytest.fixture(autouse=True)
+    def enable_layer3_scraping(self):
+        """Ensure ENABLE_LAYER_3_SCRAPING=True for all ScraperRunner tests (flag is False by default)."""
+        from src.config import settings
+        with patch.object(settings, "ENABLE_LAYER_3_SCRAPING", True):
+            yield
+
     @pytest.mark.asyncio
     @patch("src.scraper.runner.scrape_via_vision")
     @patch("src.scraper.runner.scrape_via_css")
@@ -354,6 +361,29 @@ class TestScraperRunner:
     @patch("src.scraper.runner.scrape_via_vision")
     @patch("src.scraper.runner.scrape_via_css")
     @patch("src.scraper.runner.scrape_via_network_intercept")
+    async def test_scraper_disabled_by_feature_flag(
+        self,
+        mock_network: AsyncMock,
+        mock_css: AsyncMock,
+        mock_vision: AsyncMock,
+        mock_page: AsyncMock,
+    ) -> None:
+        """When ENABLE_LAYER_3_SCRAPING is False, scraper returns None without calling any method."""
+        from src.config import settings
+
+        runner = ScraperRunner()
+        with patch.object(settings, "ENABLE_LAYER_3_SCRAPING", False):
+            result = await runner.scrape_card("sv1-25", "https://example.com", mock_page)
+
+        assert result is None
+        mock_network.assert_not_called()
+        mock_css.assert_not_called()
+        mock_vision.assert_not_called()
+
+    @pytest.mark.asyncio
+    @patch("src.scraper.runner.scrape_via_vision")
+    @patch("src.scraper.runner.scrape_via_css")
+    @patch("src.scraper.runner.scrape_via_network_intercept")
     async def test_runner_records_page_on_success(
         self,
         mock_network: AsyncMock,
@@ -376,3 +406,116 @@ class TestScraperRunner:
         await runner.scrape_card("sv1-25", "https://example.com", mock_page)
 
         assert runner.anti_detect._pages_this_hour == initial_count + 1
+
+
+# ---------------------------------------------------------------------------
+# VisionFallback tests
+# ---------------------------------------------------------------------------
+
+class TestVisionFallback:
+    @pytest.mark.asyncio
+    async def test_vision_no_api_key_returns_none(
+        self,
+        mock_page: AsyncMock,
+    ) -> None:
+        """Empty ANTHROPIC_API_KEY returns None (skips API call)."""
+        from src.scraper.vision_fallback import scrape_via_vision
+        from src.config import settings
+
+        mock_page.goto = AsyncMock()
+        mock_page.screenshot = AsyncMock(return_value=b"fake-screenshot-bytes")
+
+        with patch.object(settings, "ANTHROPIC_API_KEY", ""):
+            result = await scrape_via_vision(mock_page, "sv1-25", "https://example.com")
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_vision_empty_screenshot_returns_none(
+        self,
+        mock_page: AsyncMock,
+    ) -> None:
+        """Empty screenshot bytes (page.screenshot returns b'') returns None."""
+        mock_page.screenshot = AsyncMock(return_value=b"")
+
+        from src.scraper.vision_fallback import scrape_via_vision
+        result = await scrape_via_vision(mock_page, "sv1-25", "https://example.com")
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_vision_successful_extraction(
+        self,
+        mock_page: AsyncMock,
+    ) -> None:
+        """Successful Claude response returns ScraperResult with scrape_method=vision."""
+        from src.scraper.vision_fallback import scrape_via_vision
+        from src.config import settings
+
+        mock_response_text = '{"price_eur": 12.50, "seller_rating": 99.5, "seller_sales": 2500, "condition": "NM", "shipping_eur": 1.50}'
+
+        mock_message = MagicMock()
+        mock_message.content = [MagicMock(text=mock_response_text)]
+
+        mock_client = AsyncMock()
+        mock_client.messages.create = AsyncMock(return_value=mock_message)
+
+        with patch("anthropic.AsyncAnthropic", return_value=mock_client):
+            with patch.object(settings, "ANTHROPIC_API_KEY", "test-key"):
+                result = await scrape_via_vision(mock_page, "sv1-25", "https://example.com")
+
+        assert result is not None
+        assert result.scrape_method == "vision"
+        assert result.card_id == "sv1-25"
+        assert result.price_eur == Decimal("12.50")
+        assert result.seller_rating == Decimal("99.5")
+        assert result.seller_sales == 2500
+        assert result.condition == "NM"
+        assert result.shipping_eur == Decimal("1.50")
+
+    @pytest.mark.asyncio
+    async def test_vision_malformed_json_returns_none(
+        self,
+        mock_page: AsyncMock,
+    ) -> None:
+        """Claude returns malformed JSON → returns None (graceful failure)."""
+        from src.scraper.vision_fallback import scrape_via_vision
+        from src.config import settings
+
+        mock_message = MagicMock()
+        mock_message.content = [MagicMock(text="This is not JSON at all")]
+
+        mock_client = AsyncMock()
+        mock_client.messages.create = AsyncMock(return_value=mock_message)
+
+        with patch("anthropic.AsyncAnthropic", return_value=mock_client):
+            with patch.object(settings, "ANTHROPIC_API_KEY", "test-key"):
+                result = await scrape_via_vision(mock_page, "sv1-25", "https://example.com")
+
+        assert result is None
+
+    @pytest.mark.asyncio
+    async def test_vision_null_fields_in_response(
+        self,
+        mock_page: AsyncMock,
+    ) -> None:
+        """Claude response with null fields produces ScraperResult with None values."""
+        from src.scraper.vision_fallback import scrape_via_vision
+        from src.config import settings
+
+        mock_response_text = '{"price_eur": null, "seller_rating": null, "seller_sales": null, "condition": null, "shipping_eur": null}'
+
+        mock_message = MagicMock()
+        mock_message.content = [MagicMock(text=mock_response_text)]
+
+        mock_client = AsyncMock()
+        mock_client.messages.create = AsyncMock(return_value=mock_message)
+
+        with patch("anthropic.AsyncAnthropic", return_value=mock_client):
+            with patch.object(settings, "ANTHROPIC_API_KEY", "test-key"):
+                result = await scrape_via_vision(mock_page, "sv1-25", "https://example.com")
+
+        assert result is not None
+        assert result.price_eur is None
+        assert result.seller_rating is None
+        assert result.scrape_method == "vision"

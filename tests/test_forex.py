@@ -11,13 +11,17 @@ Rules from spec Section 4.1:
 
 from __future__ import annotations
 
+from datetime import datetime, timezone, timedelta
 from decimal import Decimal
 
 import pytest
+import respx
+import httpx
 
 from unittest.mock import patch
 
 from src.utils.forex import convert_eur_to_usd, convert_usd_to_eur, get_current_forex_rate
+import src.utils.forex as forex_module
 
 
 class TestConvertEURtoUSD:
@@ -384,30 +388,129 @@ class TestForexEdgeCases:
 
 
 class TestGetCurrentForexRate:
-    """Tests for get_current_forex_rate() config-backed accessor (Section 4.1)."""
+    """Tests for get_current_forex_rate() — no API key path (Section 4.1)."""
 
-    def test_default_returns_configured_rate(self) -> None:
-        """Default config returns Decimal('1.08') as specified in Settings."""
-        rate = get_current_forex_rate()
+    async def test_default_returns_configured_rate(self) -> None:
+        """Default config (no API key) returns Decimal('1.08') from settings."""
+        # Ensure cache is clear and no API key is set
+        forex_module._forex_cache.clear()
+        with patch("src.config.settings.EXCHANGERATE_API_KEY", ""):
+            rate = await get_current_forex_rate()
         assert rate == Decimal("1.08")
 
-    def test_returns_decimal_type(self) -> None:
+    async def test_returns_decimal_type(self) -> None:
         """Return type must be Decimal, never float (financial precision rule)."""
-        rate = get_current_forex_rate()
+        forex_module._forex_cache.clear()
+        with patch("src.config.settings.EXCHANGERATE_API_KEY", ""):
+            rate = await get_current_forex_rate()
         assert isinstance(rate, Decimal)
 
-    def test_env_override_is_respected(self) -> None:
-        """EUR_USD_RATE env var overrides the default rate."""
+    async def test_env_override_is_respected(self) -> None:
+        """EUR_USD_RATE env var overrides the default rate when no API key is set."""
         from src.config import Settings
         custom_settings = Settings(EUR_USD_RATE=Decimal("1.15"))
-        with patch("src.utils.forex.get_current_forex_rate", return_value=custom_settings.EUR_USD_RATE):
-            from src.utils.forex import get_current_forex_rate as get_rate
-            # Verify the patched value propagates correctly
-            assert custom_settings.EUR_USD_RATE == Decimal("1.15")
+        assert custom_settings.EUR_USD_RATE == Decimal("1.15")
 
-    def test_rate_usable_in_conversion(self) -> None:
+    async def test_rate_usable_in_conversion(self) -> None:
         """Rate returned by get_current_forex_rate() works directly in convert_eur_to_usd."""
-        rate = get_current_forex_rate()
+        forex_module._forex_cache.clear()
+        with patch("src.config.settings.EXCHANGERATE_API_KEY", ""):
+            rate = await get_current_forex_rate()
         result = convert_eur_to_usd(Decimal("100"), rate)
         # 100 × 1.08 × 1.02 = 110.16
         assert result == Decimal("110.16")
+
+
+class TestGetCurrentForexRateLiveAPI:
+    """Tests for get_current_forex_rate() live API path with caching (Section 4.1)."""
+
+    def setup_method(self) -> None:
+        """Clear module-level cache before each test to prevent state leakage."""
+        forex_module._forex_cache.clear()
+
+    @respx.mock
+    async def test_successful_api_call_returns_buffered_rate(self) -> None:
+        """Successful API call returns rate × 0.98 (2% pessimistic buffer), 6dp precision."""
+        api_key = "test_key_abc"
+        mock_url = f"https://v6.exchangerate-api.com/v6/{api_key}/latest/EUR"
+        respx.get(mock_url).mock(
+            return_value=httpx.Response(200, json={"conversion_rates": {"USD": 1.1}})
+        )
+
+        with patch("src.config.settings.EXCHANGERATE_API_KEY", api_key):
+            rate = await get_current_forex_rate()
+
+        # 1.1 × 0.98 = 1.078, quantized to 6dp → 1.078000
+        expected = Decimal("1.078000")
+        assert rate == expected
+        assert isinstance(rate, Decimal)
+        # Confirm 6 decimal places
+        assert rate.as_tuple().exponent == -6
+
+    @respx.mock
+    async def test_cache_hit_skips_api_on_second_call(self) -> None:
+        """Second call within TTL returns cached rate without hitting the API again."""
+        api_key = "test_key_cache"
+        mock_url = f"https://v6.exchangerate-api.com/v6/{api_key}/latest/EUR"
+        route = respx.get(mock_url).mock(
+            return_value=httpx.Response(200, json={"conversion_rates": {"USD": 1.1}})
+        )
+
+        with patch("src.config.settings.EXCHANGERATE_API_KEY", api_key):
+            first_rate = await get_current_forex_rate()
+            second_rate = await get_current_forex_rate()
+
+        # API should only have been called once
+        assert route.call_count == 1
+        # Both calls return the same cached value
+        assert first_rate == second_rate
+        assert first_rate == Decimal("1.078000")
+
+    @respx.mock
+    async def test_stale_cache_triggers_new_api_call(self) -> None:
+        """A cache entry older than FOREX_CACHE_TTL_SECONDS triggers a fresh API call."""
+        api_key = "test_key_stale"
+        mock_url = f"https://v6.exchangerate-api.com/v6/{api_key}/latest/EUR"
+        route = respx.get(mock_url).mock(
+            return_value=httpx.Response(200, json={"conversion_rates": {"USD": 1.2}})
+        )
+
+        # Pre-populate cache with a stale timestamp (25 minutes ago)
+        stale_time = datetime.now(timezone.utc) - timedelta(seconds=1500)
+        forex_module._forex_cache["rate"] = Decimal("1.050000")
+        forex_module._forex_cache["fetched_at"] = stale_time
+
+        with patch("src.config.settings.EXCHANGERATE_API_KEY", api_key):
+            rate = await get_current_forex_rate()
+
+        # API should have been called once (cache was stale)
+        assert route.call_count == 1
+        # Returned rate is from the fresh API call: 1.2 × 0.98 = 1.176
+        expected = Decimal("1.176000")
+        assert rate == expected
+
+    @respx.mock
+    async def test_api_error_falls_back_to_settings_rate(self) -> None:
+        """Network or HTTP error falls back to settings.EUR_USD_RATE — no exception raised."""
+        api_key = "test_key_error"
+        mock_url = f"https://v6.exchangerate-api.com/v6/{api_key}/latest/EUR"
+        respx.get(mock_url).mock(return_value=httpx.Response(500))
+
+        with patch("src.config.settings.EXCHANGERATE_API_KEY", api_key):
+            rate = await get_current_forex_rate()
+
+        # Must not raise — falls back gracefully
+        from src.config import settings
+        assert rate == settings.EUR_USD_RATE
+        assert isinstance(rate, Decimal)
+
+    async def test_empty_api_key_skips_api_returns_static_rate(self) -> None:
+        """Empty EXCHANGERATE_API_KEY skips the live API entirely, returns EUR_USD_RATE."""
+        with patch("src.config.settings.EXCHANGERATE_API_KEY", ""):
+            rate = await get_current_forex_rate()
+
+        from src.config import settings
+        assert rate == settings.EUR_USD_RATE
+        assert isinstance(rate, Decimal)
+        # Cache must not have been populated (no API key, no point caching)
+        assert forex_module._forex_cache == {}

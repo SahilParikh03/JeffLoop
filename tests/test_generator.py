@@ -483,6 +483,29 @@ async def test_11_signal_includes_all_required_fields(generator, test_db):
 
 
 @pytest.mark.asyncio
+async def test_bundle_logic_disabled_passes_sds_1(generator, test_db):
+    """When ENABLE_BUNDLE_LOGIC is False, SDS defaults to 1 (single-card) and signal is not suppressed."""
+    from src.config import settings
+
+    async with test_db() as session:
+        price = MarketPrice(
+            card_id="sv1-25",
+            source="justtcg",
+            price_usd=Decimal("100.00"),
+            price_eur=Decimal("40.00"),
+        )
+        session.add(price)
+        await session.commit()
+
+    with patch.object(settings, "ENABLE_BUNDLE_LOGIC", False):
+        signals = await generator.scan_for_signals()
+
+    assert len(signals) > 0
+    assert signals[0]["bundle_tier"] == "single_card"
+    assert signals[0]["audit_snapshot"]["scores"]["bundle_sds"] == "1"
+
+
+@pytest.mark.asyncio
 async def test_12_audit_snapshot_complete(generator, test_db):
     """Test 12: Audit snapshot has complete fee/score breakdown."""
     # Setup with good pricing

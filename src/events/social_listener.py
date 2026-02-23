@@ -106,6 +106,194 @@ class RedditAdapter:
         return mentions
 
 
+class TwitterAdapter:
+    """
+    Twitter/X API v2 adapter.
+
+    Uses the recent search endpoint to find tweets mentioning keywords.
+    Gated behind TWITTER_BEARER_TOKEN — returns empty list if token is unset.
+    """
+
+    API_ENDPOINT = "https://api.twitter.com/2/tweets/search/recent"
+
+    def __init__(self) -> None:
+        self._client: httpx.AsyncClient | None = None
+
+    async def __aenter__(self) -> "TwitterAdapter":
+        self._client = httpx.AsyncClient(
+            headers={"Authorization": f"Bearer {settings.TWITTER_BEARER_TOKEN}"},
+            timeout=15.0,
+        )
+        return self
+
+    async def __aexit__(self, *args: Any) -> None:
+        if self._client:
+            await self._client.aclose()
+
+    async def fetch_mentions(self, keywords: list[str]) -> list[dict[str, Any]]:
+        """
+        Fetch recent tweets mentioning any of the given keywords.
+
+        Returns list of dicts with: keyword, title, created_utc, subreddit
+        where subreddit="twitter" for compatibility with SocialListener logic.
+        """
+        if not settings.TWITTER_BEARER_TOKEN:
+            logger.warning(
+                "twitter_bearer_token_missing",
+                source="social_listener",
+            )
+            return []
+
+        if not self._client:
+            return []
+
+        mentions: list[dict[str, Any]] = []
+
+        for keyword in keywords:
+            try:
+                response = await self._client.get(
+                    self.API_ENDPOINT,
+                    params={
+                        "query": keyword,
+                        "max_results": 10,
+                        "tweet.fields": "created_at",
+                    },
+                )
+                response.raise_for_status()
+                data = response.json()
+
+                tweets = data.get("data", [])
+                for tweet in tweets:
+                    # Parse ISO 8601 timestamp to Unix int
+                    created_at_str = tweet.get("created_at", "")
+                    try:
+                        from datetime import datetime, timezone
+                        dt = datetime.fromisoformat(created_at_str.replace("Z", "+00:00"))
+                        created_utc = int(dt.timestamp())
+                    except (ValueError, AttributeError):
+                        created_utc = 0
+
+                    mentions.append({
+                        "keyword": keyword.lower(),
+                        "title": tweet.get("text", ""),
+                        "created_utc": created_utc,
+                        "subreddit": "twitter",
+                    })
+
+            except Exception as e:
+                logger.error(
+                    "twitter_fetch_error",
+                    keyword=keyword,
+                    error=str(e),
+                    source="social_listener",
+                )
+
+        return mentions
+
+
+def _discord_snowflake_to_utc(snowflake_str: str) -> int:
+    """
+    Convert a Discord snowflake ID to a Unix timestamp (seconds).
+
+    Discord epoch: 2015-01-01T00:00:00.000Z = 1420070400000 ms.
+    The top 42 bits of the snowflake encode milliseconds since Discord epoch.
+    """
+    try:
+        snowflake = int(snowflake_str)
+        timestamp_ms = (snowflake >> 22) + 1420070400000
+        return timestamp_ms // 1000
+    except (ValueError, TypeError):
+        return 0
+
+
+class DiscordAdapter:
+    """
+    Discord Bot API adapter for monitoring public TCG server channels.
+
+    Reads recent messages from configured channel IDs and counts keyword
+    mentions. Requires a bot token with Read Message History permission.
+
+    Channel IDs are configured via DISCORD_MONITOR_CHANNEL_IDS (comma-
+    separated). Returns [] silently when token or channel list is unset.
+    """
+
+    API_BASE = "https://discord.com/api/v10"
+
+    def __init__(self) -> None:
+        self._client: httpx.AsyncClient | None = None
+
+    async def __aenter__(self) -> "DiscordAdapter":
+        self._client = httpx.AsyncClient(
+            headers={"Authorization": f"Bot {settings.DISCORD_BOT_TOKEN}"},
+            timeout=15.0,
+        )
+        return self
+
+    async def __aexit__(self, *args: Any) -> None:
+        if self._client:
+            await self._client.aclose()
+
+    async def fetch_mentions(self, keywords: list[str]) -> list[dict[str, Any]]:
+        """
+        Fetch recent Discord messages mentioning any keyword.
+
+        Reads from DISCORD_MONITOR_CHANNEL_IDS (comma-separated channel IDs).
+        Returns list[dict] with schema: {keyword, title, created_utc, subreddit}
+        where subreddit="discord" for SocialListener compatibility.
+        """
+        if not settings.DISCORD_BOT_TOKEN:
+            logger.warning("discord_bot_token_missing", source="social_listener")
+            return []
+
+        if not settings.DISCORD_MONITOR_CHANNEL_IDS:
+            logger.warning("discord_no_channels_configured", source="social_listener")
+            return []
+
+        if not self._client:
+            return []
+
+        mentions: list[dict[str, Any]] = []
+        keywords_lower = [k.lower() for k in keywords]
+        channel_ids = [
+            c.strip()
+            for c in settings.DISCORD_MONITOR_CHANNEL_IDS.split(",")
+            if c.strip()
+        ]
+
+        for channel_id in channel_ids:
+            try:
+                response = await self._client.get(
+                    f"{self.API_BASE}/channels/{channel_id}/messages",
+                    params={"limit": 25},
+                )
+                response.raise_for_status()
+                messages = response.json()
+
+                for msg in messages:
+                    content = (msg.get("content") or "").lower()
+                    for kw in keywords_lower:
+                        if kw in content:
+                            created_utc = _discord_snowflake_to_utc(
+                                msg.get("id", "0")
+                            )
+                            mentions.append({
+                                "keyword": kw,
+                                "title": msg.get("content", ""),
+                                "created_utc": created_utc,
+                                "subreddit": "discord",
+                            })
+
+            except Exception as e:
+                logger.error(
+                    "discord_fetch_error",
+                    channel_id=channel_id,
+                    error=str(e),
+                    source="social_listener",
+                )
+
+        return mentions
+
+
 class SocialListener:
     """
     Monitors social platforms for keyword frequency spikes.

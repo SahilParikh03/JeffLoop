@@ -8,10 +8,13 @@ Only processes screenshots (image data). See CVE-2026-25253.
 
 from __future__ import annotations
 
+import base64
+import json
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
 
+import anthropic
 import structlog
 
 from src.scraper import ScraperResult
@@ -56,9 +59,6 @@ async def scrape_via_vision(
             )
             return None
 
-        # Phase 2: Screenshot → structured data extraction
-        # This would call a vision model with ONLY the screenshot bytes
-        # For now, log and return None — vision extraction is Phase 3
         logger.info(
             "vision_fallback_screenshot_captured",
             card_id=card_id,
@@ -66,9 +66,74 @@ async def scrape_via_vision(
             source="vision_fallback",
         )
 
-        # TODO: Phase 3 — Implement vision model extraction
-        # SECURITY: Only pass screenshot_bytes (image), never DOM text
-        return None
+        # Guard: no API key configured
+        from src.config import settings
+        if not settings.ANTHROPIC_API_KEY:
+            logger.warning(
+                "vision_fallback_no_api_key",
+                card_id=card_id,
+                source="vision_fallback",
+            )
+            return None
+
+        # Base64-encode the screenshot
+        image_data = base64.standard_b64encode(screenshot_bytes).decode("utf-8")
+
+        # Call Claude Vision API
+        # SECURITY: Only screenshot_bytes (image) sent — NO DOM text, NO seller descriptions
+        client = anthropic.AsyncAnthropic(api_key=settings.ANTHROPIC_API_KEY)
+        response = await client.messages.create(
+            model=settings.VISION_MODEL_ID,
+            max_tokens=256,
+            messages=[{
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": "image/png",
+                            "data": image_data,
+                        },
+                    },
+                    {
+                        "type": "text",
+                        "text": (
+                            "Extract card listing data from this Cardmarket screenshot. "
+                            "Return ONLY a JSON object: "
+                            '{"price_eur": <number|null>, "seller_rating": <number|null>, '
+                            '"seller_sales": <integer|null>, "condition": <"MT"|"NM"|"EXC"|"GD"|"LP"|"PL"|"PO"|null>, '
+                            '"shipping_eur": <number|null>} '
+                            "No other text."
+                        ),
+                    },
+                ],
+            }],
+        )
+
+        # Parse JSON response
+        try:
+            raw = response.content[0].text.strip()
+            extracted = json.loads(raw)
+        except (json.JSONDecodeError, IndexError, AttributeError) as parse_err:
+            logger.warning(
+                "vision_fallback_parse_error",
+                card_id=card_id,
+                error=str(parse_err),
+                source="vision_fallback",
+            )
+            return None
+
+        return ScraperResult(
+            card_id=card_id,
+            price_eur=Decimal(str(extracted["price_eur"])) if extracted.get("price_eur") is not None else None,
+            seller_rating=Decimal(str(extracted["seller_rating"])) if extracted.get("seller_rating") is not None else None,
+            seller_sales=extracted.get("seller_sales"),
+            condition=extracted.get("condition"),
+            shipping_eur=Decimal(str(extracted["shipping_eur"])) if extracted.get("shipping_eur") is not None else None,
+            scrape_method="vision",
+            scraped_at=datetime.now(timezone.utc),
+        )
 
     except Exception as e:
         logger.error(

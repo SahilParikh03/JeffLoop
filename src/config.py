@@ -77,6 +77,29 @@ class Settings(BaseSettings):
     TELEGRAM_BOT_TOKEN: str = ""
     DISCORD_BOT_TOKEN: str = ""
     DISCORD_CHANNEL_ID: int = 0
+    TWITTER_BEARER_TOKEN: str = ""          # Phase 3 — Twitter/X API v2 Bearer Token
+
+    # eBay Browse API (Section 5 — US price discovery)
+    EBAY_APP_ID: str = ""                   # eBay Developer App ID (Client ID)
+    EBAY_CERT_ID: str = ""                  # eBay Developer Cert ID (Client Secret)
+    EBAY_OAUTH_URL: str = "https://api.ebay.com/identity/v1/oauth2/token"
+    EBAY_BROWSE_URL: str = "https://api.ebay.com/buy/browse/v1"
+
+    # Discord social listener (Layer 3.5 — Section 3.5)
+    DISCORD_MONITOR_CHANNEL_IDS: str = ""   # Comma-separated channel IDs to monitor
+
+    # -----------------------------------------------------------------------
+    # Phase 3 — Live Forex API (ExchangeRate-API)
+    # -----------------------------------------------------------------------
+    EXCHANGERATE_API_KEY: str = ""          # API key from exchangerate-api.com
+    EXCHANGERATE_API_URL: str = "https://v6.exchangerate-api.com/v6"
+    FOREX_CACHE_TTL_SECONDS: int = 900      # 15-minute cache to avoid hammering API
+
+    # -----------------------------------------------------------------------
+    # Phase 3 — Vision Fallback (Claude Vision API)
+    # -----------------------------------------------------------------------
+    ANTHROPIC_API_KEY: str = ""             # Anthropic API key for vision fallback
+    VISION_MODEL_ID: str = "claude-opus-4-6"  # Model for screenshot extraction
 
     # -----------------------------------------------------------------------
     # Database
@@ -256,6 +279,9 @@ class Settings(BaseSettings):
     # -----------------------------------------------------------------------
     POKETRACE_BASE_URL: str = "https://api.poketrace.com/v1"
     POKETRACE_POLL_INTERVAL_HOURS: int = 12
+
+    # eBay polling cadence (Section 5)
+    EBAY_POLL_INTERVAL_HOURS: int = 12
 
     # -----------------------------------------------------------------------
     # Limitless TCG Configuration

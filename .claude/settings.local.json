@@ -31,7 +31,8 @@
       "Bash(cd /c/Users/ReachElysium/Documents/JeffLoop && python -m pytest tests/test_scraper.py -v 2>&1)",
       "Bash(cd \"C:\\\\Users\\\\ReachElysium\\\\Documents\\\\JeffLoop\" && python -m pytest tests/ -v --tb=no -q 2>&1)",
       "Bash(cd /c/Users/ReachElysium/Documents/JeffLoop && python -m pytest tests/test_triggers.py -v 2>&1)",
-      "Bash(cd /c/Users/ReachElysium/Documents/JeffLoop && python -m pytest tests/ --tb=short 2>&1)"
+      "Bash(cd /c/Users/ReachElysium/Documents/JeffLoop && python -m pytest tests/ --tb=short 2>&1)",
+      "Bash(wc:*)"
     ]
   }
 }

@@ -27,10 +27,28 @@ logger = structlog.get_logger(__name__)
 
 
 class UserTier(IntEnum):
-    """Subscription tier with numeric ordering for sorting."""
-    PREMIUM = 3
-    STANDARD = 2
+    """
+    Subscription tier with numeric ordering for sorting.
+
+    Spec Section 10 — four tiers:
+      SHOP   ($200/mo) — highest priority, first signal window
+      PRO    ($75/mo)
+      TRADER ($25/mo)
+      FREE   ($0)     — weekly digest only
+    """
+
+    SHOP = 4
+    PRO = 3
+    TRADER = 2
     FREE = 1
+
+
+# Backwards-compatibility aliases for Phase 1-3 tier names.
+# "premium" → PRO, "standard" → TRADER
+_TIER_ALIASES: dict[str, str] = {
+    "premium": "pro",
+    "standard": "trader",
+}
 
 
 def score_candidates(
@@ -41,13 +59,14 @@ def score_candidates(
     Sort user candidates by delivery priority.
 
     Ordering (descending priority):
-    1. Tier (premium > standard > free)
+    1. Tier (shop > pro > trader > free)
     2. priority_score (higher = more engaged user)
     3. category_match bonus (if signal category matches user preference)
 
     Each candidate dict must have:
     - "user_id": str
-    - "tier": str — one of "premium", "standard", "free"
+    - "tier": str — one of "shop", "pro", "trader", "free"
+      (legacy "premium"/"standard" are silently mapped via _TIER_ALIASES)
     - "priority_score": float or Decimal
     - "categories": list[str] | None — user's preferred categories
 
@@ -61,7 +80,9 @@ def score_candidates(
     scored: list[tuple[int, float, int, dict[str, Any]]] = []
 
     for candidate in candidates:
-        tier_name = candidate.get("tier", "free").lower()
+        raw_tier = candidate.get("tier", "free").lower()
+        # Resolve legacy alias if present
+        tier_name = _TIER_ALIASES.get(raw_tier, raw_tier)
         try:
             tier_value = UserTier[tier_name.upper()].value
         except KeyError:

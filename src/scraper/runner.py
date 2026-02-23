@@ -18,6 +18,7 @@ import structlog
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.config import settings
 from src.scraper import ScraperResult
 from src.scraper.anti_detect import AntiDetect
 from src.scraper.css_fallback import scrape_via_css
@@ -58,6 +59,14 @@ class ScraperRunner:
         Returns:
             ScraperResult if any method succeeds, None if all fail.
         """
+        if not settings.ENABLE_LAYER_3_SCRAPING:
+            logger.debug(
+                "scraper_disabled_by_flag",
+                card_id=card_id,
+                source="scraper_runner",
+            )
+            return None
+
         if not self.anti_detect.can_scrape():
             logger.warning(
                 "scraper_rate_limited",

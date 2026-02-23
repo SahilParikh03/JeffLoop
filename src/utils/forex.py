@@ -10,11 +10,16 @@ user-configurable via DEFAULT_FOREX_BUFFER in config.
 
 All money values use Decimal — never float — to avoid rounding errors
 in financial calculations.
+
+get_current_forex_rate() is async and uses a live API with a 15-minute
+in-memory cache. Falls back to settings.EUR_USD_RATE on any failure or
+when no API key is configured.
 """
 
 from __future__ import annotations
 
 from decimal import Decimal, ROUND_HALF_UP
+from typing import Any
 
 import structlog
 
@@ -22,6 +27,9 @@ logger = structlog.get_logger(__name__)
 
 # Default 2% buffer from spec Section 4.1
 _DEFAULT_BUFFER = Decimal("0.02")
+
+# Module-level cache (in-memory, not persisted across restarts)
+_forex_cache: dict[str, Any] = {}
 
 
 def convert_eur_to_usd(
@@ -115,12 +123,72 @@ def convert_usd_to_eur(
     return result
 
 
-def get_current_forex_rate() -> Decimal:
+async def get_current_forex_rate() -> Decimal:
     """
-    Return the current EUR/USD exchange rate from config.
+    Return the current EUR/USD exchange rate.
 
-    MVP: reads from EUR_USD_RATE env var / config default.
-    Phase 2: will integrate with a real-time forex API.
+    Uses live API with 15-minute in-memory cache.
+    Falls back to settings.EUR_USD_RATE on any failure or missing API key.
+
+    Returns Decimal rounded to 6 decimal places, with 2% pessimistic buffer already applied.
     """
     from src.config import settings
-    return settings.EUR_USD_RATE
+    import httpx
+    from datetime import datetime, timezone
+
+    # If no API key configured, use static rate directly
+    if not settings.EXCHANGERATE_API_KEY:
+        logger.debug(
+            "forex_no_api_key_using_static",
+            rate=str(settings.EUR_USD_RATE),
+            source="forex",
+        )
+        return settings.EUR_USD_RATE
+
+    # Check cache freshness
+    now = datetime.now(timezone.utc)
+    if _forex_cache:
+        age_seconds = (now - _forex_cache["fetched_at"]).total_seconds()
+        if age_seconds < settings.FOREX_CACHE_TTL_SECONDS:
+            logger.debug(
+                "forex_cache_hit",
+                rate=str(_forex_cache["rate"]),
+                age_seconds=int(age_seconds),
+                source="forex",
+            )
+            return _forex_cache["rate"]
+
+    # Fetch from live API
+    try:
+        url = f"{settings.EXCHANGERATE_API_URL}/{settings.EXCHANGERATE_API_KEY}/latest/EUR"
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            response = await client.get(url)
+            response.raise_for_status()
+            data = response.json()
+
+        raw_rate = Decimal(str(data["conversion_rates"]["USD"]))
+        # Apply 2% pessimistic buffer
+        buffered_rate = (raw_rate * Decimal("0.98")).quantize(
+            Decimal("0.000001"), rounding=ROUND_HALF_UP
+        )
+
+        # Update cache
+        _forex_cache["rate"] = buffered_rate
+        _forex_cache["fetched_at"] = now
+
+        logger.info(
+            "forex_rate_refreshed",
+            raw_rate=str(raw_rate),
+            buffered_rate=str(buffered_rate),
+            source="forex",
+        )
+        return buffered_rate
+
+    except Exception as e:
+        logger.warning(
+            "forex_api_failed_using_fallback",
+            error=str(e),
+            fallback_rate=str(settings.EUR_USD_RATE),
+            source="forex",
+        )
+        return settings.EUR_USD_RATE

@@ -112,3 +112,75 @@ class TestDemoteUser:
         demoted = demote_user(user)
         assert user["tier"] == "premium"
         assert demoted["tier"] == "free"
+
+
+class TestSubscriptionTierRouting:
+    """Verify 4-tier ordering and backwards-compat alias mapping (Phase 4)."""
+
+    def test_shop_tier_beats_pro(self) -> None:
+        """SHOP (4) > PRO (3) regardless of priority score."""
+        candidates = [
+            _make_candidate("pro_user", tier="pro", priority_score=100),
+            _make_candidate("shop_user", tier="shop", priority_score=1),
+        ]
+        result = score_candidates(candidates)
+        assert result[0]["user_id"] == "shop_user"
+
+    def test_pro_tier_beats_trader(self) -> None:
+        """PRO (3) > TRADER (2) regardless of priority score."""
+        candidates = [
+            _make_candidate("trader_user", tier="trader", priority_score=100),
+            _make_candidate("pro_user", tier="pro", priority_score=1),
+        ]
+        result = score_candidates(candidates)
+        assert result[0]["user_id"] == "pro_user"
+
+    def test_trader_tier_beats_free(self) -> None:
+        """TRADER (2) > FREE (1) regardless of priority score."""
+        candidates = [
+            _make_candidate("free_user", tier="free", priority_score=100),
+            _make_candidate("trader_user", tier="trader", priority_score=1),
+        ]
+        result = score_candidates(candidates)
+        assert result[0]["user_id"] == "trader_user"
+
+    def test_full_four_tier_ordering(self) -> None:
+        """SHOP > PRO > TRADER > FREE ordering holds across all four tiers."""
+        candidates = [
+            _make_candidate("free_user", tier="free", priority_score=50),
+            _make_candidate("shop_user", tier="shop", priority_score=50),
+            _make_candidate("trader_user", tier="trader", priority_score=50),
+            _make_candidate("pro_user", tier="pro", priority_score=50),
+        ]
+        result = score_candidates(candidates)
+        order = [c["user_id"] for c in result]
+        assert order == ["shop_user", "pro_user", "trader_user", "free_user"]
+
+    def test_legacy_premium_tier_maps_to_pro(self) -> None:
+        """Legacy 'premium' tier string is treated as PRO priority."""
+        candidates = [
+            _make_candidate("premium_user", tier="premium", priority_score=50),
+            _make_candidate("trader_user", tier="trader", priority_score=50),
+        ]
+        result = score_candidates(candidates)
+        # premium → pro (3) > trader (2)
+        assert result[0]["user_id"] == "premium_user"
+
+    def test_legacy_standard_tier_maps_to_trader(self) -> None:
+        """Legacy 'standard' tier string is treated as TRADER priority."""
+        candidates = [
+            _make_candidate("standard_user", tier="standard", priority_score=50),
+            _make_candidate("free_user", tier="free", priority_score=50),
+        ]
+        result = score_candidates(candidates)
+        # standard → trader (2) > free (1)
+        assert result[0]["user_id"] == "standard_user"
+
+    def test_legacy_premium_loses_to_shop(self) -> None:
+        """Legacy 'premium' (→ PRO=3) is still below real 'shop' (4)."""
+        candidates = [
+            _make_candidate("premium_user", tier="premium", priority_score=100),
+            _make_candidate("shop_user", tier="shop", priority_score=1),
+        ]
+        result = score_candidates(candidates)
+        assert result[0]["user_id"] == "shop_user"

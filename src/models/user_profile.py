@@ -59,6 +59,12 @@ class UserProfile(Base):
         nullable=True,
         comment="Discord channel ID for signal delivery (Phase 2)",
     )
+    subscription_tier: Mapped[str] = mapped_column(
+        String,
+        default="free",
+        server_default="free",
+        comment="Subscription tier: free | trader | pro | shop",
+    )
 
     # --- Section 8: Core profile fields ---
     country: Mapped[str] = mapped_column(
