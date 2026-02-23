@@ -1,0 +1,10 @@
+{
+    "price": "12.50",
+    "priceEUR": "12.50",
+    "sellerId": "seller-123",
+    "sellerRating": "99.5",
+    "sellerSales": 2500,
+    "condition": "NEAR_MINT",
+    "shippingPrice": "1.50",
+    "sellerOtherCards": ["sv1-1", "sv1-2", "sv1-3", "sv2-10", "sv2-15"]
+}

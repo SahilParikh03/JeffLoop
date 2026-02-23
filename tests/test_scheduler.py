@@ -170,3 +170,139 @@ async def test_poll_pokemontcg_mock(scheduler):
 
         assert rowcount > 0
         assert scheduler._pokemontcg_last_poll > datetime.now(timezone.utc) - timedelta(seconds=1)
+
+
+# ---------------------------------------------------------------------------
+# Stream E: Signal generator integration tests
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture
+async def scheduler_with_generator(test_db_engine, test_session_factory):
+    """Create a Scheduler instance with a mocked SignalGenerator."""
+    mock_generator = AsyncMock()
+    mock_generator.run_and_notify = AsyncMock(return_value=5)
+    sched = Scheduler(test_db_engine, test_session_factory, signal_generator=mock_generator)
+    return sched
+
+
+@pytest.mark.asyncio
+async def test_should_scan_signals_none_generator(test_db_engine, test_session_factory):
+    """When signal_generator is None, _should_scan_signals must return False."""
+    sched = Scheduler(test_db_engine, test_session_factory, signal_generator=None)
+    assert sched._should_scan_signals() is False
+
+
+@pytest.mark.asyncio
+async def test_should_scan_signals_not_elapsed(scheduler_with_generator):
+    """When cadence has not elapsed, _should_scan_signals returns False."""
+    # Set last scan to just now — well within the 30-minute cadence
+    scheduler_with_generator._signal_last_scan = datetime.now(timezone.utc)
+    assert scheduler_with_generator._should_scan_signals() is False
+
+
+@pytest.mark.asyncio
+async def test_should_scan_signals_elapsed(scheduler_with_generator):
+    """When cadence has elapsed, _should_scan_signals returns True."""
+    # Set last scan to 31 minutes ago — past the 30-minute cadence
+    scheduler_with_generator._signal_last_scan = (
+        datetime.now(timezone.utc) - timedelta(minutes=31)
+    )
+    assert scheduler_with_generator._should_scan_signals() is True
+
+
+@pytest.mark.asyncio
+async def test_scan_signals_runs_generator(scheduler_with_generator):
+    """_scan_signals fetches user profiles and calls run_and_notify with them."""
+    # Force the cadence to appear elapsed so the scan path is exercised
+    scheduler_with_generator._signal_last_scan = (
+        datetime.now(timezone.utc) - timedelta(minutes=31)
+    )
+
+    mock_user = MagicMock()
+    mock_user.id = "user-1"
+
+    # Build a mock session whose execute() returns a result with one user.
+    # select and UserProfile are local imports inside _scan_signals, so we
+    # patch at their origin modules to avoid AttributeError on the scheduler.
+    mock_session = AsyncMock()
+    mock_result = MagicMock()
+    mock_result.scalars.return_value.all.return_value = [mock_user]
+    mock_session.execute = AsyncMock(return_value=mock_result)
+    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+    mock_session.__aexit__ = AsyncMock(return_value=None)
+
+    mock_factory = MagicMock(return_value=mock_session)
+
+    with patch("src.models.user_profile.UserProfile", new_callable=MagicMock), \
+         patch("sqlalchemy.select", return_value=MagicMock()):
+        with patch.object(scheduler_with_generator, "session_factory", mock_factory):
+            delivered = await scheduler_with_generator._scan_signals()
+
+    # run_and_notify must have been called exactly once with the user list
+    scheduler_with_generator.signal_generator.run_and_notify.assert_called_once_with(
+        [mock_user]
+    )
+    assert delivered == 5
+
+
+@pytest.mark.asyncio
+async def test_scan_signals_error_resilience(scheduler_with_generator):
+    """If signal_generator.run_and_notify raises, scheduler logs and updates last_scan."""
+    scheduler_with_generator.signal_generator.run_and_notify = AsyncMock(
+        side_effect=RuntimeError("generator exploded")
+    )
+
+    before = datetime.now(timezone.utc) - timedelta(seconds=1)
+
+    mock_user = MagicMock()
+    mock_session = AsyncMock()
+    mock_result = MagicMock()
+    mock_result.scalars.return_value.all.return_value = [mock_user]
+    mock_session.execute = AsyncMock(return_value=mock_result)
+    mock_session.__aenter__ = AsyncMock(return_value=mock_session)
+    mock_session.__aexit__ = AsyncMock(return_value=None)
+
+    mock_factory = MagicMock(return_value=mock_session)
+
+    with patch("src.models.user_profile.UserProfile", new_callable=MagicMock), \
+         patch("sqlalchemy.select", return_value=MagicMock()):
+        with patch.object(scheduler_with_generator, "session_factory", mock_factory):
+            # Must not raise — error resilience is the contract
+            delivered = await scheduler_with_generator._scan_signals()
+
+    assert delivered == 0
+    # last_scan must have been updated to prevent rapid retries
+    assert scheduler_with_generator._signal_last_scan >= before
+
+
+@pytest.mark.asyncio
+async def test_scheduler_run_includes_signal_scan(test_db_engine, test_session_factory):
+    """run() calls _scan_signals when the cadence is due."""
+    mock_generator = AsyncMock()
+    mock_generator.run_and_notify = AsyncMock(return_value=3)
+
+    sched = Scheduler(test_db_engine, test_session_factory, signal_generator=mock_generator)
+
+    # Make the signal scan immediately due
+    sched._signal_last_scan = datetime.now(timezone.utc) - timedelta(minutes=31)
+
+    # Prevent JustTCG and pokemontcg polls from running (not the focus here)
+    sched._justtcg_last_poll = datetime.now(timezone.utc)
+    sched._pokemontcg_last_poll = datetime.now(timezone.utc)
+
+    scan_called = asyncio.Event()
+
+    original_scan = sched._scan_signals
+
+    async def _patched_scan() -> int:
+        scan_called.set()
+        await sched.shutdown()
+        return 0
+
+    sched._scan_signals = _patched_scan  # type: ignore[method-assign]
+
+    # Run the scheduler; it will call _patched_scan which then shuts itself down
+    await sched.run()
+
+    assert scan_called.is_set(), "_scan_signals was never called by run()"

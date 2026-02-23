@@ -66,6 +66,19 @@ async def test_db():
                 )
             """)
         )
+        # price_history table required by engine/price_trend.py (Phase 2)
+        await conn.execute(
+            text("""
+                CREATE TABLE IF NOT EXISTS price_history (
+                    id TEXT PRIMARY KEY,
+                    card_id TEXT NOT NULL,
+                    source TEXT NOT NULL,
+                    price_usd REAL,
+                    price_eur REAL,
+                    recorded_at TEXT NOT NULL
+                )
+            """)
+        )
 
     SessionLocal = sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 

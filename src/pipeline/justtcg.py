@@ -269,6 +269,19 @@ class JustTCGClient:
                     "last_updated": datetime.now(timezone.utc),
                 },
             )
+
+            # Append to price_history (append-only, no upsert)
+            history_stmt = text("""
+                INSERT INTO price_history (card_id, source, price_usd, price_eur, recorded_at)
+                VALUES (:card_id, 'justtcg', :price_usd, :price_eur, :recorded_at)
+            """)
+            await session.execute(history_stmt, {
+                "card_id": price.card_id,
+                "price_usd": price.price_usd,
+                "price_eur": price.price_eur,
+                "recorded_at": datetime.now(timezone.utc),
+            })
+
             count += 1
 
         await session.commit()

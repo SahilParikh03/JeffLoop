@@ -123,7 +123,7 @@ src/
 │   └── user_profile.py
 ├── pipeline/
 │   ├── __init__.py
-│   ├── justtcg.py
+│   ├── justtcg.pyOk goodco
 │   ├── pokemontcg.py
 │   └── scheduler.py
 ├── signals/

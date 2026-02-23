@@ -54,6 +54,11 @@ class UserProfile(Base):
         nullable=True,
         comment="Telegram chat ID for signal delivery (MVP)",
     )
+    discord_channel_id: Mapped[int | None] = mapped_column(
+        BIGINT,
+        nullable=True,
+        comment="Discord channel ID for signal delivery (Phase 2)",
+    )
 
     # --- Section 8: Core profile fields ---
     country: Mapped[str] = mapped_column(

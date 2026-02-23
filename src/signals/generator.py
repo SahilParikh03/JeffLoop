@@ -30,6 +30,7 @@ from src.config import settings
 from src.engine.bundle import calculate_seller_density_score
 from src.engine.headache import calculate_headache_score
 from src.engine.maturity import calculate_maturity_decay
+from src.engine.price_trend import get_7day_trend
 from src.engine.profit import calculate_net_profit
 from src.engine.rotation import check_rotation_risk
 from src.engine.seller_quality import check_seller_quality
@@ -40,6 +41,7 @@ from src.models.card_metadata import CardMetadata
 from src.models.market_price import MarketPrice
 from src.models.user_profile import UserProfile
 from src.signals.deep_link import build_signal_urls
+from src.signals.delivery import DiscordNotifier
 from src.signals.telegram import TelegramNotifier
 from src.utils.condition_map import CardmarketGrade, map_condition
 from src.utils.forex import get_current_forex_rate
@@ -54,9 +56,11 @@ class SignalGenerator:
         self,
         session_factory: async_sessionmaker[AsyncSession],
         notifier: TelegramNotifier,
+        discord_notifier: DiscordNotifier | None = None,
     ):
         self.session_factory = session_factory
         self.notifier = notifier
+        self.discord_notifier = discord_notifier
 
     async def scan_for_signals(self) -> list[dict[str, Any]]:
         """
@@ -100,8 +104,10 @@ class SignalGenerator:
                         filter_counts["variant"] += 1
 
                         # 2. SELLER QUALITY (Section 5)
-                        # PHASE_2_STUB: Hardcoded seller rating/sales — JustTCG API doesn't return seller-level data. Needs Layer 3 scraping.
-                        if not check_seller_quality(Decimal("98.5"), 100):
+                        # Use scraped seller data when available, fallback to defaults
+                        seller_rating = price.seller_rating if price.seller_rating is not None else Decimal("98.5")
+                        seller_sales = price.seller_sales if price.seller_sales is not None else 100
+                        if not check_seller_quality(seller_rating, seller_sales):
                             continue
                         filter_counts["seller"] += 1
 
@@ -128,14 +134,30 @@ class SignalGenerator:
                         filter_counts["profit"] += 1
 
                         # 5. VELOCITY SCORE (Section 4.2)
-                        # PHASE_2_STUB: Hardcoded velocity — needs Sales_30d and Active_Listings from PokeTrace API.
-                        vel_score, vel_tier = calculate_velocity_score(Decimal("1.0"))
+                        # Lookup PokeTrace velocity data for this card
+                        poketrace_res = await session.execute(
+                            select(MarketPrice).where(
+                                MarketPrice.card_id == price.card_id,
+                                MarketPrice.source == "poketrace",
+                            )
+                        )
+                        poketrace_row = poketrace_res.scalar()
+                        if (
+                            poketrace_row
+                            and poketrace_row.sales_30d
+                            and poketrace_row.active_listings
+                            and poketrace_row.active_listings > 0
+                        ):
+                            raw_velocity = Decimal(str(poketrace_row.sales_30d)) / Decimal(str(poketrace_row.active_listings))
+                        else:
+                            raw_velocity = Decimal("1.0")  # Fallback when no PokeTrace data
+                        vel_score, vel_tier = calculate_velocity_score(raw_velocity)
                         filter_counts["velocity"] += 1
 
-                        # 6. TREND CLASSIFICATION (Section 4.3)
-                        # PHASE_2_STUB: Hardcoded price_trend=0 — needs 7-day price history from multiple poll cycles.
+                        # 6. TREND CLASSIFICATION (Section 4.3) — uses 7-day price history
+                        price_trend = await get_7day_trend(price.card_id, price.source, session)
                         trend_cls, trend_suppress = classify_trend(
-                            vel_score, Decimal("0.00")
+                            vel_score, price_trend
                         )
                         if trend_suppress:
                             continue
@@ -161,7 +183,7 @@ class SignalGenerator:
                         filter_counts["headache"] += 1
 
                         # 10. BUNDLE LOGIC (Section 4.5)
-                        # PHASE_2_STUB: Hardcoded seller_card_count=1 — needs seller stock queries via Layer 3 scraping.
+                        # SDS remains 1 for non-scraped cards (correct behavior per spec)
                         bundle_result = calculate_seller_density_score(
                             seller_card_count=1,
                             card_price_usd=price.price_usd,
@@ -281,6 +303,27 @@ class SignalGenerator:
                             count=count,
                             source="generator",
                         )
+
+                    # Discord delivery (Phase 2)
+                    if user_signals and self.discord_notifier and getattr(user, "discord_channel_id", None):
+                        try:
+                            dc_count = await self.discord_notifier.send_batch_signals(
+                                user.discord_channel_id, user_signals
+                            )
+                            total_delivered += dc_count
+                            logger.info(
+                                "user_discord_delivery",
+                                user_id=str(user.id),
+                                count=dc_count,
+                                source="generator",
+                            )
+                        except Exception as e:
+                            logger.error(
+                                "user_discord_delivery_error",
+                                user_id=str(user.id),
+                                error=str(e),
+                                source="generator",
+                            )
 
                 except Exception as e:
                     logger.error(

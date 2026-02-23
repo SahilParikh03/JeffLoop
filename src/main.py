@@ -20,6 +20,8 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sess
 
 from src.config import settings
 from src.pipeline.scheduler import run_scheduler
+from src.signals.generator import SignalGenerator
+from src.signals.telegram import TelegramNotifier
 
 
 # ---------------------------------------------------------------------------
@@ -151,9 +153,18 @@ async def main() -> None:
         layer_35_social_enabled=settings.ENABLE_LAYER_35_SOCIAL,
     )
 
+    # Initialize signal delivery pipeline
+    notifier = TelegramNotifier()
+    signal_generator = SignalGenerator(session_factory, notifier)
+
+    logger.info(
+        "signal_generator_initialized",
+        telegram_enabled=bool(settings.TELEGRAM_BOT_TOKEN),
+    )
+
     # Run the scheduler (blocks until shutdown)
     try:
-        await run_scheduler(engine, session_factory)
+        await run_scheduler(engine, session_factory, signal_generator=signal_generator)
     except KeyboardInterrupt:
         logger.info("tcg_radar_interrupted_by_user")
     except Exception as e:

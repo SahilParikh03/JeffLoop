@@ -75,6 +75,8 @@ class Settings(BaseSettings):
     POKEMONTCG_API_KEY: str = ""
     POKETRACE_API_KEY: str = ""
     TELEGRAM_BOT_TOKEN: str = ""
+    DISCORD_BOT_TOKEN: str = ""
+    DISCORD_CHANNEL_ID: int = 0
 
     # -----------------------------------------------------------------------
     # Database
@@ -246,6 +248,20 @@ class Settings(BaseSettings):
     POKEMONTCG_REFRESH_INTERVAL_HOURS: int = 24
     SOCIAL_SPIKE_POLL_INTERVAL_MINUTES: int = 30
     SOCIAL_SPIKE_REVERT_HOURS: int = 4
+    SOCIAL_SPIKE_MULTIPLIER: float = 5.0
+    SIGNAL_SCAN_INTERVAL_MINUTES: int = 30
+
+    # -----------------------------------------------------------------------
+    # PokeTrace API Configuration
+    # -----------------------------------------------------------------------
+    POKETRACE_BASE_URL: str = "https://api.poketrace.com/v1"
+    POKETRACE_POLL_INTERVAL_HOURS: int = 12
+
+    # -----------------------------------------------------------------------
+    # Limitless TCG Configuration
+    # -----------------------------------------------------------------------
+    LIMITLESS_BASE_URL: str = "https://play.limitlesstcg.com/api"
+    LIMITLESS_POLL_INTERVAL_MINUTES: int = 60
 
     # -----------------------------------------------------------------------
     # User Profile Defaults

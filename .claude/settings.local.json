@@ -20,7 +20,18 @@
       "Bash(cd \"C:\\\\Users\\\\ReachElysium\\\\Documents\\\\JeffLoop\" && python -m pytest tests/ -k forex -v 2>&1)",
       "Bash(cd \"C:\\\\Users\\\\ReachElysium\\\\Documents\\\\JeffLoop\" && python -m pytest tests/test_integration.py -v 2>&1)",
       "Bash(cd /c/Users/ReachElysium/Documents/JeffLoop && python -m pytest tests/ -v --tb=short 2>&1)",
-      "Bash(test:*)"
+      "Bash(test:*)",
+      "Bash(cd \"C:\\\\Users\\\\ReachElysium\\\\Documents\\\\JeffLoop\" && python -m pytest tests/test_scheduler.py -v 2>&1)",
+      "Bash(cd /c/Users/ReachElysium/Documents/JeffLoop && python -m pytest tests/test_price_trend.py -v 2>&1)",
+      "Bash(cd \"C:\\\\Users\\\\ReachElysium\\\\Documents\\\\JeffLoop\" && python -m pytest tests/test_delivery.py -v 2>&1)",
+      "Bash(cd /c/Users/ReachElysium/Documents/JeffLoop && python -m pytest tests/test_poketrace.py -v 2>&1)",
+      "Bash(cd /c/Users/ReachElysium/Documents/JeffLoop && python -m pytest tests/test_scheduler.py -v 2>&1)",
+      "Bash(cd \"C:\\\\Users\\\\ReachElysium\\\\Documents\\\\JeffLoop\" && python -m pytest tests/test_social_listener.py tests/test_limitless.py tests/test_synergy.py -v 2>&1)",
+      "Bash(cd /c/Users/ReachElysium/Documents/JeffLoop && python -c \"from src.pipeline.poketrace import PokeTraceClient, PokeTraceVelocityData, PokeTraceCardResponse; from src.pipeline.scheduler import Scheduler; from src.signals.generator import SignalGenerator; print\\('All imports OK'\\)\" 2>&1)",
+      "Bash(cd /c/Users/ReachElysium/Documents/JeffLoop && python -m pytest tests/test_scraper.py -v 2>&1)",
+      "Bash(cd \"C:\\\\Users\\\\ReachElysium\\\\Documents\\\\JeffLoop\" && python -m pytest tests/ -v --tb=no -q 2>&1)",
+      "Bash(cd /c/Users/ReachElysium/Documents/JeffLoop && python -m pytest tests/test_triggers.py -v 2>&1)",
+      "Bash(cd /c/Users/ReachElysium/Documents/JeffLoop && python -m pytest tests/ --tb=short 2>&1)"
     ]
   }
 }

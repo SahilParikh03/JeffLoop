@@ -23,6 +23,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sess
 from src.config import settings
 from src.pipeline.justtcg import JustTCGClient
 from src.pipeline.pokemontcg import PokemonTCGClient
+from src.pipeline.poketrace import PokeTraceClient
 
 logger = structlog.get_logger(__name__)
 
@@ -39,6 +40,7 @@ class Scheduler:
         self,
         db_engine: Any,
         session_factory: async_sessionmaker[AsyncSession],
+        signal_generator: Any | None = None,  # SignalGenerator instance, optional
     ):
         self.db_engine = db_engine
         self.session_factory = session_factory
@@ -51,8 +53,16 @@ class Scheduler:
         self._pokemontcg_last_poll: datetime = datetime.now(timezone.utc)
         self._pokemontcg_cadence_minutes = settings.POKEMONTCG_REFRESH_INTERVAL_HOURS * 60
 
+        self._poketrace_last_poll: datetime = datetime.now(timezone.utc)
+        self._poketrace_cadence_minutes = settings.POKETRACE_POLL_INTERVAL_HOURS * 60
+
         # Social spike tracking: card_id -> (spike_start, spike_revert_time)
         self._social_spikes: dict[str, datetime] = {}
+
+        # Signal generator wiring
+        self.signal_generator = signal_generator
+        self._signal_last_scan: datetime = datetime.min.replace(tzinfo=timezone.utc)
+        self._signal_cadence_minutes = settings.SIGNAL_SCAN_INTERVAL_MINUTES
 
     async def shutdown(self) -> None:
         """Signal graceful shutdown to the scheduler loop."""
@@ -174,6 +184,102 @@ class Scheduler:
         )
         return rowcount
 
+    def _should_poll_poketrace(self) -> bool:
+        """Check if PokeTrace poll window has elapsed."""
+        now = datetime.now(timezone.utc)
+        elapsed_minutes = (now - self._poketrace_last_poll).total_seconds() / 60
+        return elapsed_minutes >= self._poketrace_cadence_minutes
+
+    async def _poll_poketrace(self) -> int:
+        """
+        Fetch and store velocity data from PokeTrace API.
+
+        Returns:
+            Number of velocity records stored.
+        """
+        logger.info("scheduler_poketrace_poll_start")
+        rowcount = 0
+
+        async with self.session_factory() as session:
+            async with PokeTraceClient() as client:
+                popular_sets = ["sv1", "sv1pt5", "sv2"]
+
+                for set_code in popular_sets:
+                    try:
+                        velocities = await client.fetch_set_velocity(set_code)
+                        for vel_data in velocities:
+                            try:
+                                await client.store_velocity(vel_data, session)
+                                rowcount += 1
+                            except Exception as e:
+                                logger.error(
+                                    "scheduler_poketrace_store_failed",
+                                    card_id=vel_data.card_id,
+                                    error=str(e),
+                                )
+                    except Exception as e:
+                        logger.error(
+                            "scheduler_poketrace_set_fetch_failed",
+                            set_code=set_code,
+                            error=str(e),
+                        )
+
+        self._poketrace_last_poll = datetime.now(timezone.utc)
+
+        logger.info(
+            "scheduler_poketrace_poll_complete",
+            rowcount=rowcount,
+            next_poll_in_hours=settings.POKETRACE_POLL_INTERVAL_HOURS,
+        )
+        return rowcount
+
+    def _should_scan_signals(self) -> bool:
+        """Check if signal scan window has elapsed."""
+        if self.signal_generator is None:
+            return False
+        now = datetime.now(timezone.utc)
+        elapsed_minutes = (now - self._signal_last_scan).total_seconds() / 60
+        return elapsed_minutes >= self._signal_cadence_minutes
+
+    async def _scan_signals(self) -> int:
+        """
+        Run the signal generator scan-and-notify pipeline.
+
+        Fetches all user profiles and runs the full Layer 2->4 pipeline.
+        Returns: Number of signals delivered.
+        """
+        logger.info("scheduler_signal_scan_start")
+        delivered = 0
+
+        try:
+            async with self.session_factory() as session:
+                from src.models.user_profile import UserProfile
+                from sqlalchemy import select
+
+                result = await session.execute(select(UserProfile))
+                users = result.scalars().all()
+
+            if users:
+                delivered = await self.signal_generator.run_and_notify(users)
+
+            self._signal_last_scan = datetime.now(timezone.utc)
+
+            logger.info(
+                "scheduler_signal_scan_complete",
+                delivered=delivered,
+                user_count=len(users) if users else 0,
+            )
+        except Exception as e:
+            logger.error(
+                "scheduler_signal_scan_failed",
+                error=str(e),
+                error_type=type(e).__name__,
+            )
+            # Update last scan time even on failure to prevent rapid retries
+            self._signal_last_scan = datetime.now(timezone.utc)
+
+        return delivered
+
     async def run(self) -> None:
         """
         Main scheduler loop. Runs indefinitely until shutdown is signaled.
@@ -199,6 +305,12 @@ class Scheduler:
                     if self._should_poll_pokemontcg():
                         await self._poll_pokemontcg()
 
+                    if self._should_poll_poketrace():
+                        await self._poll_poketrace()
+
+                    if self._should_scan_signals():
+                        await self._scan_signals()
+
                     # Sleep before next check
                     await asyncio.wait_for(
                         self._shutdown_event.wait(),
@@ -223,7 +335,11 @@ class Scheduler:
             logger.info("scheduler_stopped")
 
 
-async def run_scheduler(db_engine: Any, session_factory: async_sessionmaker[AsyncSession]) -> None:
+async def run_scheduler(
+    db_engine: Any,
+    session_factory: async_sessionmaker[AsyncSession],
+    signal_generator: Any | None = None,
+) -> None:
     """
     Initialize and run the scheduler with graceful shutdown handling.
 
@@ -232,8 +348,9 @@ async def run_scheduler(db_engine: Any, session_factory: async_sessionmaker[Asyn
     Args:
         db_engine: SQLAlchemy async engine.
         session_factory: SQLAlchemy async session factory.
+        signal_generator: Optional SignalGenerator instance for Layer 2->4 pipeline.
     """
-    scheduler = Scheduler(db_engine, session_factory)
+    scheduler = Scheduler(db_engine, session_factory, signal_generator=signal_generator)
 
     # Register signal handlers for graceful shutdown
     def handle_signal(_signum: int, _frame: Any) -> None:

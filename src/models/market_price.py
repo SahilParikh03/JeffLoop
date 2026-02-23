@@ -10,7 +10,7 @@ from __future__ import annotations
 from datetime import datetime
 from decimal import Decimal
 
-from sqlalchemy import DECIMAL, TIMESTAMP, Index, String, func, text
+from sqlalchemy import DECIMAL, INTEGER, TIMESTAMP, Index, String, func, text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from src.models.base import Base
@@ -49,6 +49,25 @@ class MarketPrice(Base):
         server_default=func.now(),
         onupdate=func.now(),
         comment="Last time this price record was updated",
+    )
+
+    # Phase 2 — seller data (populated by Layer 3 scraping)
+    seller_id: Mapped[str | None] = mapped_column(
+        String, nullable=True, comment="Seller identifier from scraper"
+    )
+    seller_rating: Mapped[Decimal | None] = mapped_column(
+        DECIMAL(5, 2), nullable=True, comment="Seller rating percentage"
+    )
+    seller_sales: Mapped[int | None] = mapped_column(
+        INTEGER, nullable=True, comment="Seller total sales count"
+    )
+
+    # Phase 2 — PokeTrace velocity data
+    sales_30d: Mapped[int | None] = mapped_column(
+        INTEGER, nullable=True, comment="Sales in last 30 days (PokeTrace)"
+    )
+    active_listings: Mapped[int | None] = mapped_column(
+        INTEGER, nullable=True, comment="Active listing count (PokeTrace)"
     )
 
     # Index per CLAUDE.md: market_prices(card_id, source)
