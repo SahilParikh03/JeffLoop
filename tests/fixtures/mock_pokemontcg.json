@@ -1,0 +1,140 @@
+{
+  "status": "success",
+  "data": [
+    {
+      "id": "sv4-200",
+      "name": "Iron Valiant ex",
+      "set": {
+        "id": "sv4pt",
+        "name": "Paradox Rift",
+        "releaseDate": "2023-11-03"
+      },
+      "number": "200",
+      "regulationMark": "H",
+      "legalities": {
+        "unlimited": "Legal",
+        "standard": "Legal",
+        "expanded": "Legal"
+      },
+      "tcgplayer": {
+        "url": "https://www.tcgplayer.com/product/view/sv4-200",
+        "updatedAt": "2026-02-22T14:30:00Z"
+      },
+      "cardmarket": {
+        "url": "https://www.cardmarket.com/en/Pokemon/Products/Singles/sv4-200"
+      },
+      "images": {
+        "small": "https://images.pokemontcg.io/sv4/200_sm.png",
+        "large": "https://images.pokemontcg.io/sv4/200_lg.png"
+      }
+    },
+    {
+      "id": "sv1-25",
+      "name": "Pikachu ex",
+      "set": {
+        "id": "sv1",
+        "name": "Scarlet & Violet",
+        "releaseDate": "2023-03-31"
+      },
+      "number": "25",
+      "regulationMark": "G",
+      "legalities": {
+        "unlimited": "Legal",
+        "standard": "Banned",
+        "expanded": "Legal"
+      },
+      "tcgplayer": {
+        "url": "https://www.tcgplayer.com/product/view/sv1-25",
+        "updatedAt": "2026-02-22T14:30:00Z"
+      },
+      "cardmarket": {
+        "url": "https://www.cardmarket.com/en/Pokemon/Products/Singles/sv1-25"
+      },
+      "images": {
+        "small": "https://images.pokemontcg.io/sv1/25_sm.png",
+        "large": "https://images.pokemontcg.io/sv1/25_lg.png"
+      }
+    },
+    {
+      "id": "sv2-45",
+      "name": "Miraidon ex",
+      "set": {
+        "id": "sv2",
+        "name": "Paldea Evolved",
+        "releaseDate": "2023-06-09"
+      },
+      "number": "45",
+      "regulationMark": "G",
+      "legalities": {
+        "unlimited": "Legal",
+        "standard": "Banned",
+        "expanded": "Legal"
+      },
+      "tcgplayer": {
+        "url": "https://www.tcgplayer.com/product/view/sv2-45",
+        "updatedAt": "2026-02-22T14:30:00Z"
+      },
+      "cardmarket": {
+        "url": "https://www.cardmarket.com/en/Pokemon/Products/Singles/sv2-45"
+      },
+      "images": {
+        "small": "https://images.pokemontcg.io/sv2/45_sm.png",
+        "large": "https://images.pokemontcg.io/sv2/45_lg.png"
+      }
+    },
+    {
+      "id": "sv45-100",
+      "name": "Pecharunt ex",
+      "set": {
+        "id": "sv45",
+        "name": "Paldean Fates",
+        "releaseDate": "2024-11-22"
+      },
+      "number": "100",
+      "regulationMark": "H",
+      "legalities": {
+        "unlimited": "Legal",
+        "standard": "Legal",
+        "expanded": "Legal"
+      },
+      "tcgplayer": {
+        "url": "https://www.tcgplayer.com/product/view/sv45-100",
+        "updatedAt": "2026-02-22T14:30:00Z"
+      },
+      "cardmarket": {
+        "url": "https://www.cardmarket.com/en/Pokemon/Products/Singles/sv45-100"
+      },
+      "images": {
+        "small": "https://images.pokemontcg.io/sv45/100_sm.png",
+        "large": "https://images.pokemontcg.io/sv45/100_lg.png"
+      }
+    },
+    {
+      "id": "sv4pt5-50",
+      "name": "Temporal Heroes Starter Deck",
+      "set": {
+        "id": "sv4pt5",
+        "name": "Temporal Heroes",
+        "releaseDate": "2025-12-13"
+      },
+      "number": "50",
+      "regulationMark": "H",
+      "legalities": {
+        "unlimited": "Legal",
+        "standard": "Legal",
+        "expanded": "Legal"
+      },
+      "tcgplayer": {
+        "url": "https://www.tcgplayer.com/product/view/sv4pt5-50",
+        "updatedAt": "2026-02-22T14:30:00Z"
+      },
+      "cardmarket": {
+        "url": "https://www.cardmarket.com/en/Pokemon/Products/Singles/sv4pt5-50"
+      },
+      "images": {
+        "small": "https://images.pokemontcg.io/sv4pt5/50_sm.png",
+        "large": "https://images.pokemontcg.io/sv4pt5/50_lg.png"
+      }
+    }
+  ]
+}

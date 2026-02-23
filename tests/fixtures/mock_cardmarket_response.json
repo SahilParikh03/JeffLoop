@@ -1,0 +1,80 @@
+{
+  "status": "success",
+  "listings": [
+    {
+      "id": "cm_sv1_25_1",
+      "card_id": "sv1-25",
+      "card_name": "Pikachu ex",
+      "set_code": "SV1",
+      "price_eur": 5.49,
+      "condition": "NM",
+      "condition_raw": "Near Mint",
+      "seller_rating": 97.8,
+      "seller_sales": 120,
+      "seller_id": "seller_1001",
+      "shipping_eur": 2.50,
+      "in_stock": true,
+      "scraped_at": "2026-02-22T14:25:00Z"
+    },
+    {
+      "id": "cm_sv1_150_1",
+      "card_id": "sv1-150",
+      "card_name": "Charizard ex",
+      "set_code": "SV1",
+      "price_eur": 18.50,
+      "condition": "EXC",
+      "condition_raw": "Excellent",
+      "seller_rating": 98.1,
+      "seller_sales": 200,
+      "seller_id": "seller_1002",
+      "shipping_eur": 3.50,
+      "in_stock": true,
+      "scraped_at": "2026-02-22T14:25:00Z"
+    },
+    {
+      "id": "cm_sv2_45_1",
+      "card_id": "sv2-45",
+      "card_name": "Miraidon ex",
+      "set_code": "SV2",
+      "price_eur": 85.00,
+      "condition": "NM",
+      "condition_raw": "Near Mint",
+      "seller_rating": 99.0,
+      "seller_sales": 350,
+      "seller_id": "seller_1003",
+      "shipping_eur": 5.00,
+      "in_stock": true,
+      "scraped_at": "2026-02-22T14:25:00Z"
+    },
+    {
+      "id": "cm_sv3_200_1",
+      "card_id": "sv3-200",
+      "card_name": "Lugia VSTAR",
+      "set_code": "SV3",
+      "price_eur": 420.00,
+      "condition": "NM",
+      "condition_raw": "Near Mint",
+      "seller_rating": 97.5,
+      "seller_sales": 85,
+      "seller_id": "seller_1004",
+      "shipping_eur": 12.00,
+      "in_stock": true,
+      "scraped_at": "2026-02-22T14:25:00Z"
+    },
+    {
+      "id": "cm_sv4_300_1",
+      "card_id": "sv4-300",
+      "card_name": "Ancient Roar Booster Box",
+      "set_code": "SV4",
+      "price_eur": 650.00,
+      "condition": "NM",
+      "condition_raw": "Near Mint",
+      "seller_rating": 98.3,
+      "seller_sales": 60,
+      "seller_id": "seller_1005",
+      "shipping_eur": 25.00,
+      "in_stock": true,
+      "scraped_at": "2026-02-22T14:25:00Z"
+    }
+  ]
+}

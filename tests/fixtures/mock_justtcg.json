@@ -1,0 +1,150 @@
+{
+  "status": "success",
+  "data": [
+    {
+      "id": "sv1-25",
+      "name": "Pikachu ex",
+      "set_code": "SV1",
+      "set_name": "Scarlet & Violet",
+      "card_number": "25",
+      "pokemontcg_id": "sv1-25",
+      "tcgplayer_listings": [
+        {
+          "id": "tcg_sv1_25_1",
+          "price_usd": 5.99,
+          "condition": "Near Mint",
+          "seller_rating": 98.5,
+          "seller_sales": 250,
+          "last_updated": "2026-02-22T14:30:00Z"
+        }
+      ],
+      "cardmarket_listings": [
+        {
+          "id": "cm_sv1_25_1",
+          "price_eur": 5.49,
+          "condition": "NM",
+          "seller_rating": 97.8,
+          "seller_sales": 120,
+          "shipping_eur": 2.50,
+          "last_updated": "2026-02-22T14:25:00Z"
+        }
+      ]
+    },
+    {
+      "id": "sv1-150",
+      "name": "Charizard ex",
+      "set_code": "SV1",
+      "set_name": "Scarlet & Violet",
+      "card_number": "150",
+      "pokemontcg_id": "sv1-150",
+      "tcgplayer_listings": [
+        {
+          "id": "tcg_sv1_150_1",
+          "price_usd": 24.99,
+          "condition": "Lightly Played",
+          "seller_rating": 99.2,
+          "seller_sales": 450,
+          "last_updated": "2026-02-22T14:30:00Z"
+        }
+      ],
+      "cardmarket_listings": [
+        {
+          "id": "cm_sv1_150_1",
+          "price_eur": 18.50,
+          "condition": "EXC",
+          "seller_rating": 98.1,
+          "seller_sales": 200,
+          "shipping_eur": 3.50,
+          "last_updated": "2026-02-22T14:25:00Z"
+        }
+      ]
+    },
+    {
+      "id": "sv2-45",
+      "name": "Miraidon ex",
+      "set_code": "SV2",
+      "set_name": "Paldea Evolved",
+      "card_number": "45",
+      "pokemontcg_id": "sv2-45",
+      "tcgplayer_listings": [
+        {
+          "id": "tcg_sv2_45_1",
+          "price_usd": 99.50,
+          "condition": "Near Mint",
+          "seller_rating": 99.5,
+          "seller_sales": 800,
+          "last_updated": "2026-02-22T14:30:00Z"
+        }
+      ],
+      "cardmarket_listings": [
+        {
+          "id": "cm_sv2_45_1",
+          "price_eur": 85.00,
+          "condition": "NM",
+          "seller_rating": 99.0,
+          "seller_sales": 350,
+          "shipping_eur": 5.00,
+          "last_updated": "2026-02-22T14:25:00Z"
+        }
+      ]
+    },
+    {
+      "id": "sv3-200",
+      "name": "Lugia VSTAR",
+      "set_code": "SV3",
+      "set_name": "Obsidian Flames",
+      "card_number": "200",
+      "pokemontcg_id": "sv3-200",
+      "tcgplayer_listings": [
+        {
+          "id": "tcg_sv3_200_1",
+          "price_usd": 499.99,
+          "condition": "Near Mint",
+          "seller_rating": 98.8,
+          "seller_sales": 120,
+          "last_updated": "2026-02-22T14:30:00Z"
+        }
+      ],
+      "cardmarket_listings": [
+        {
+          "id": "cm_sv3_200_1",
+          "price_eur": 420.00,
+          "condition": "NM",
+          "seller_rating": 97.5,
+          "seller_sales": 85,
+          "shipping_eur": 12.00,
+          "last_updated": "2026-02-22T14:25:00Z"
+        }
+      ]
+    },
+    {
+      "id": "sv4-300",
+      "name": "Ancient Roar Booster Box",
+      "set_code": "SV4",
+      "set_name": "Paradox Rift",
+      "card_number": "300",
+      "pokemontcg_id": "sv4-300",
+      "tcgplayer_listings": [
+        {
+          "id": "tcg_sv4_300_1",
+          "price_usd": 749.99,
+          "condition": "Near Mint",
+          "seller_rating": 99.1,
+          "seller_sales": 95,
+          "last_updated": "2026-02-22T14:30:00Z"
+        }
+      ],
+      "cardmarket_listings": [
+        {
+          "id": "cm_sv4_300_1",
+          "price_eur": 650.00,
+          "condition": "NM",
+          "seller_rating": 98.3,
+          "seller_sales": 60,
+          "shipping_eur": 25.00,
+          "last_updated": "2026-02-22T14:25:00Z"
+        }
+      ]
+    }
+  ]
+}
