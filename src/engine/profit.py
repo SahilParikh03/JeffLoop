@@ -126,7 +126,10 @@ def calculate_net_profit(
         buffer=settings.DEFAULT_FOREX_BUFFER,
     )
     adjusted_tcg_price = _quantize(tcg_price_usd * condition_mapping.price_multiplier)
-    tcg_fees = _quantize(adjusted_tcg_price * settings.TCGPLAYER_FEE_RATE)
+    tcg_fees = _quantize(
+        min(adjusted_tcg_price * settings.TCGPLAYER_FEE_RATE, settings.TCGPLAYER_FEE_CAP)
+        + settings.TCGPLAYER_FIXED_FEE
+    )
     customs = _calculate_customs(cogs_usd, forex_rate, regime)
     shipping = _quantize(settings.SHIPPING_COST_USD)
 

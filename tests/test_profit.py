@@ -34,7 +34,7 @@ def test_calculate_net_profit_de_minimis_below_threshold_has_no_customs() -> Non
 
     cogs = convert_eur_to_usd(cm_price_eur, forex_rate, buffer=settings.DEFAULT_FOREX_BUFFER)
     adjusted_price = _q(tcg_price_usd)
-    fees = _q(adjusted_price * settings.TCGPLAYER_FEE_RATE)
+    fees = _q(min(adjusted_price * settings.TCGPLAYER_FEE_RATE, settings.TCGPLAYER_FEE_CAP) + settings.TCGPLAYER_FIXED_FEE)
     revenue = _q(adjusted_price - fees)
     expected_net = _q(revenue - cogs - settings.SHIPPING_COST_USD)
     expected_margin = _q((expected_net / revenue) * _HUNDRED)
@@ -156,7 +156,7 @@ def test_calculate_net_profit_condition_penalty_is_applied() -> None:
     exc = calculate_net_profit(condition="EXC", **common_kwargs)
 
     adjusted_exc = _q(Decimal("200.00") * settings.CONDITION_PENALTY_EXCELLENT)
-    expected_exc_fees = _q(adjusted_exc * settings.TCGPLAYER_FEE_RATE)
+    expected_exc_fees = _q(min(adjusted_exc * settings.TCGPLAYER_FEE_RATE, settings.TCGPLAYER_FEE_CAP) + settings.TCGPLAYER_FIXED_FEE)
     expected_exc_revenue = _q(adjusted_exc - expected_exc_fees)
 
     assert exc["revenue"] == expected_exc_revenue

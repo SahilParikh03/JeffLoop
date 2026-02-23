@@ -133,7 +133,7 @@ async def main() -> None:
     # Health check: verify database connection
     try:
         async with session_factory() as session:
-            await session.execute("SELECT 1")
+            await session.execute(text("SELECT 1"))
         logger.info("database_health_check_passed")
     except Exception as e:
         logger.error(
