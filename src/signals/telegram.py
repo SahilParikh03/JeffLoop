@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import re
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Any
 
 import structlog
@@ -87,7 +87,7 @@ def _fmt_digest_body(signals: list[dict[str, Any]]) -> str:
     avg_margin_str = _escape_mdv2(f"{avg_margin:.1f}")
     best_profit_str = _escape_mdv2(f"{best_profit:.2f}")
     total_str = _escape_mdv2(str(total))
-    date_str = _escape_mdv2(datetime.utcnow().strftime("%Y-%m-%d"))
+    date_str = _escape_mdv2(datetime.now(timezone.utc).strftime("%Y-%m-%d"))
 
     lines: list[str] = [
         f"📅 *TCG Radar Daily Digest — {date_str}*\n",
@@ -136,7 +136,7 @@ class TelegramNotifier:
                 "telegram_notifier_disabled",
                 reason="TELEGRAM_BOT_TOKEN is empty or not set",
                 source="telegram",
-                timestamp=datetime.utcnow().isoformat(),
+                timestamp=datetime.now(timezone.utc).isoformat(),
             )
 
     async def __aenter__(self) -> TelegramNotifier:
@@ -184,7 +184,7 @@ class TelegramNotifier:
                 card_id=card_id,
                 chat_id=chat_id,
                 source="telegram",
-                timestamp=datetime.utcnow().isoformat(),
+                timestamp=datetime.now(timezone.utc).isoformat(),
             )
             return True
 
@@ -195,7 +195,7 @@ class TelegramNotifier:
                 chat_id=chat_id,
                 error=str(exc),
                 source="telegram",
-                timestamp=datetime.utcnow().isoformat(),
+                timestamp=datetime.now(timezone.utc).isoformat(),
             )
             return False
 
@@ -234,7 +234,7 @@ class TelegramNotifier:
             total=len(signals),
             delivered=delivered,
             source="telegram",
-            timestamp=datetime.utcnow().isoformat(),
+            timestamp=datetime.now(timezone.utc).isoformat(),
         )
         return delivered
 
@@ -263,7 +263,7 @@ class TelegramNotifier:
                 "digest_skipped_no_signals",
                 chat_id=chat_id,
                 source="telegram",
-                timestamp=datetime.utcnow().isoformat(),
+                timestamp=datetime.now(timezone.utc).isoformat(),
             )
             return False
 
@@ -280,7 +280,7 @@ class TelegramNotifier:
                 chat_id=chat_id,
                 total_signals=len(signals),
                 source="telegram",
-                timestamp=datetime.utcnow().isoformat(),
+                timestamp=datetime.now(timezone.utc).isoformat(),
             )
             return True
 
@@ -290,6 +290,6 @@ class TelegramNotifier:
                 chat_id=chat_id,
                 error=str(exc),
                 source="telegram",
-                timestamp=datetime.utcnow().isoformat(),
+                timestamp=datetime.now(timezone.utc).isoformat(),
             )
             return False

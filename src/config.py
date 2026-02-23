@@ -237,6 +237,7 @@ class Settings(BaseSettings):
     # Forex â€” Section 4.1
     # -----------------------------------------------------------------------
     DEFAULT_FOREX_BUFFER: Decimal = Decimal("0.02")  # 2% buffer on EUR/USD
+    EUR_USD_RATE: Decimal = Decimal("1.08")          # Spot EUR/USD rate (overridable via env)
 
     # -----------------------------------------------------------------------
     # Scheduler â€” Polling Cadence

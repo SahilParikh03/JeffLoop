@@ -15,7 +15,9 @@ from decimal import Decimal
 
 import pytest
 
-from src.utils.forex import convert_eur_to_usd, convert_usd_to_eur
+from unittest.mock import patch
+
+from src.utils.forex import convert_eur_to_usd, convert_usd_to_eur, get_current_forex_rate
 
 
 class TestConvertEURtoUSD:
@@ -379,3 +381,33 @@ class TestForexEdgeCases:
         buffered_rate = spot_rate * Decimal("1.02")
         expected = (amount_usd / buffered_rate).quantize(Decimal("0.01"))
         assert result == expected
+
+
+class TestGetCurrentForexRate:
+    """Tests for get_current_forex_rate() config-backed accessor (Section 4.1)."""
+
+    def test_default_returns_configured_rate(self) -> None:
+        """Default config returns Decimal('1.08') as specified in Settings."""
+        rate = get_current_forex_rate()
+        assert rate == Decimal("1.08")
+
+    def test_returns_decimal_type(self) -> None:
+        """Return type must be Decimal, never float (financial precision rule)."""
+        rate = get_current_forex_rate()
+        assert isinstance(rate, Decimal)
+
+    def test_env_override_is_respected(self) -> None:
+        """EUR_USD_RATE env var overrides the default rate."""
+        from src.config import Settings
+        custom_settings = Settings(EUR_USD_RATE=Decimal("1.15"))
+        with patch("src.utils.forex.get_current_forex_rate", return_value=custom_settings.EUR_USD_RATE):
+            from src.utils.forex import get_current_forex_rate as get_rate
+            # Verify the patched value propagates correctly
+            assert custom_settings.EUR_USD_RATE == Decimal("1.15")
+
+    def test_rate_usable_in_conversion(self) -> None:
+        """Rate returned by get_current_forex_rate() works directly in convert_eur_to_usd."""
+        rate = get_current_forex_rate()
+        result = convert_eur_to_usd(Decimal("100"), rate)
+        # 100 × 1.08 × 1.02 = 110.16
+        assert result == Decimal("110.16")

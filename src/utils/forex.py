@@ -113,3 +113,14 @@ def convert_usd_to_eur(
         result_eur=str(result),
     )
     return result
+
+
+def get_current_forex_rate() -> Decimal:
+    """
+    Return the current EUR/USD exchange rate from config.
+
+    MVP: reads from EUR_USD_RATE env var / config default.
+    Phase 2: will integrate with a real-time forex API.
+    """
+    from src.config import settings
+    return settings.EUR_USD_RATE

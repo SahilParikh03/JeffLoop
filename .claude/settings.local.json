@@ -10,7 +10,17 @@
       "Bash(cat:*)",
       "Bash(cd /c/Users/ReachElysium/Documents/JeffLoop && python << 'PYEOF'\nfrom datetime import date\nfrom decimal import Decimal\nfrom src.engine.maturity import calculate_maturity_decay, apply_maturity_penalty_with_reprint_rumor\nfrom src.engine.rotation import check_rotation_risk, get_mark_distance_from_current\n\n# Test maturity\ndecay = calculate_maturity_decay\\(date\\(2026, 2, 22\\), date\\(2026, 2, 22\\)\\)\nprint\\(f\"[OK] Maturity fresh set: {decay} == 1.0\"\\)\n\ndecay_with_rumor = apply_maturity_penalty_with_reprint_rumor\\(\n    Decimal\\(\"0.8\"\\), date\\(2026, 1, 1\\), True, date\\(2026, 2, 22\\)\n\\)\nprint\\(f\"[OK] Maturity with reprint penalty: {decay_with_rumor}\"\\)\n\n# Test rotation\nresult = check_rotation_risk\\(\"H\", \"Standard\", date\\(2026, 2, 22\\)\\)\nprint\\(f\"[OK] Rotation H mark: {result['risk_level']}\"\\)\n\nresult_g = check_rotation_risk\\(\"G\", \"Standard\", date\\(2026, 2, 22\\)\\)\nprint\\(f\"[OK] Rotation G mark today: {result_g['risk_level']} \\(days={result_g.get\\('days_until_rotation', 'N/A'\\)}\\)\"\\)\n\ndistance = get_mark_distance_from_current\\(\"G\"\\)\nprint\\(f\"[OK] Mark distance G: {distance}\"\\)\n\nprint\\(\"[OK] All imports and functions work!\"\\)\nPYEOF)",
       "Bash(cd /c/Users/ReachElysium/Documents/JeffLoop && python -m pytest tests/test_effective_price.py -v 2>&1)",
-      "Bash(cd /c/Users/ReachElysium/Documents/JeffLoop && python -m pytest tests/test_trend.py -v 2>&1)"
+      "Bash(cd /c/Users/ReachElysium/Documents/JeffLoop && python -m pytest tests/test_trend.py -v 2>&1)",
+      "Bash(cd /c/Users/ReachElysium/Documents/JeffLoop && python -m pytest tests/test_bundle.py -v 2>&1)",
+      "Bash(cd /c/Users/ReachElysium/Documents/JeffLoop && python -c \"from src.models import Signal, SignalAudit; print\\(f'Signal table: {Signal.__tablename__}'\\); print\\(f'SignalAudit table: {SignalAudit.__tablename__}'\\); print\\('All imports OK'\\)\" 2>&1)",
+      "Bash(cd \"C:\\\\Users\\\\ReachElysium\\\\Documents\\\\JeffLoop\" && python -m pytest tests/test_rotation_signals.py -v 2>&1)",
+      "Bash(cd /c/Users/ReachElysium/Documents/JeffLoop && python -m pytest tests/test_cascade.py -v 2>&1)",
+      "Bash(cd /c/Users/ReachElysium/Documents/JeffLoop && python -c \"from src.models import Signal, SignalAudit; from src.signals.cascade import should_cascade; from src.signals.rotation import score_candidates; from src.engine.bundle import calculate_seller_density_score; from src.engine.fees import calculate_platform_fees; from src.engine.trend import classify_trend; from src.engine.effective_price import calculate_effective_buy_price; from src.signals.deep_link import build_signal_urls; print\\('All imports OK'\\)\" 2>&1)",
+      "Bash(cd /c/Users/ReachElysium/Documents/JeffLoop && python -c \"exec\\(open\\('alembic/versions/002_signals_schema.py'\\).read\\(\\)\\); print\\(f'revision: {revision}'\\); print\\(f'down_revision: {down_revision}'\\); print\\('Migration file syntactically valid'\\)\" 2>&1)",
+      "Bash(cd \"C:\\\\Users\\\\ReachElysium\\\\Documents\\\\JeffLoop\" && python -m pytest tests/ -k forex -v 2>&1)",
+      "Bash(cd \"C:\\\\Users\\\\ReachElysium\\\\Documents\\\\JeffLoop\" && python -m pytest tests/test_integration.py -v 2>&1)",
+      "Bash(cd /c/Users/ReachElysium/Documents/JeffLoop && python -m pytest tests/ -v --tb=short 2>&1)",
+      "Bash(test:*)"
     ]
   }
 }

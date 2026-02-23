@@ -7,9 +7,11 @@ Executes Layer 2 Rules Engine pipeline in strict order per CLAUDE.md:
 3. Condition Mapping — pessimistic Cardmarket→TCGPlayer (Section 4.6)
 4. Net Profit — calculate and threshold (Section 4.1)
 5. Velocity Score — sales liquidity tier (Section 4.2)
-6. Maturity Decay — set age hype decay (Section 4.2.2)
-7. Rotation Risk — calendar overlay (Section 7)
-8. Headache Score — labor-to-loot ratio (Section 4.4)
+6. Trend Classification — falling knife filter (Section 4.3)
+7. Maturity Decay — set age hype decay (Section 4.2.2)
+8. Rotation Risk — calendar overlay (Section 7)
+9. Headache Score — labor-to-loot ratio (Section 4.4)
+10. Bundle Logic — seller density score (Section 4.5)
 
 Calls REAL engine modules, not stubs.
 """
@@ -25,18 +27,22 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from src.config import settings
+from src.engine.bundle import calculate_seller_density_score
 from src.engine.headache import calculate_headache_score
 from src.engine.maturity import calculate_maturity_decay
 from src.engine.profit import calculate_net_profit
 from src.engine.rotation import check_rotation_risk
 from src.engine.seller_quality import check_seller_quality
+from src.engine.trend import classify_trend
 from src.engine.variant_check import validate_variant
 from src.engine.velocity import calculate_velocity_score
 from src.models.card_metadata import CardMetadata
 from src.models.market_price import MarketPrice
 from src.models.user_profile import UserProfile
+from src.signals.deep_link import build_signal_urls
 from src.signals.telegram import TelegramNotifier
 from src.utils.condition_map import CardmarketGrade, map_condition
+from src.utils.forex import get_current_forex_rate
 
 logger = structlog.get_logger(__name__)
 
@@ -61,7 +67,8 @@ class SignalGenerator:
         signals: list[dict[str, Any]] = []
         filter_counts = {
             "initial": 0, "variant": 0, "seller": 0, "condition": 0,
-            "profit": 0, "velocity": 0, "maturity": 0, "rotation": 0, "headache": 0,
+            "profit": 0, "velocity": 0, "trend": 0, "maturity": 0,
+            "rotation": 0, "headache": 0, "bundle": 0,
         }
 
         try:
@@ -79,19 +86,31 @@ class SignalGenerator:
 
                 for price in prices:
                     try:
+                        # Load metadata once per card
+                        meta_res = await session.execute(
+                            select(CardMetadata).where(CardMetadata.card_id == price.card_id)
+                        )
+                        metadata = meta_res.scalar()
+
                         # 1. VARIANT CHECK (Section 4.7)
-                        if validate_variant(price.card_id, price.card_id) != "MATCH":
+                        # Compare price source card_id against metadata canonical ID
+                        canonical_id = metadata.card_id if metadata else price.card_id
+                        if validate_variant(price.card_id, canonical_id) != "MATCH":
                             continue
                         filter_counts["variant"] += 1
 
                         # 2. SELLER QUALITY (Section 5)
+                        # PHASE_2_STUB: Hardcoded seller rating/sales — JustTCG API doesn't return seller-level data. Needs Layer 3 scraping.
                         if not check_seller_quality(Decimal("98.5"), 100):
                             continue
                         filter_counts["seller"] += 1
 
                         # 3. CONDITION MAPPING (Section 4.6)
+                        # Use actual condition from listing when available
+                        condition_str = price.condition or CardmarketGrade.NEAR_MINT.value
                         try:
-                            mapping = map_condition(CardmarketGrade.NEAR_MINT)
+                            condition_grade = CardmarketGrade(condition_str.strip().upper()) if price.condition else CardmarketGrade.NEAR_MINT
+                            mapping = map_condition(condition_grade)
                         except ValueError:
                             continue
                         filter_counts["condition"] += 1
@@ -100,8 +119,8 @@ class SignalGenerator:
                         profit = calculate_net_profit(
                             cm_price_eur=price.price_eur,
                             tcg_price_usd=price.price_usd,
-                            forex_rate=Decimal("1.08"),
-                            condition=CardmarketGrade.NEAR_MINT.value,
+                            forex_rate=get_current_forex_rate(),
+                            condition=condition_grade.value,
                             customs_regime=settings.CUSTOMS_REGIME.value,
                         )
                         if profit["net_profit"] < settings.DEFAULT_MIN_PROFIT_THRESHOLD:
@@ -109,22 +128,27 @@ class SignalGenerator:
                         filter_counts["profit"] += 1
 
                         # 5. VELOCITY SCORE (Section 4.2)
+                        # PHASE_2_STUB: Hardcoded velocity — needs Sales_30d and Active_Listings from PokeTrace API.
                         vel_score, vel_tier = calculate_velocity_score(Decimal("1.0"))
                         filter_counts["velocity"] += 1
 
-                        # 6. MATURITY DECAY (Section 4.2.2)
-                        # Load metadata for release date
-                        meta_res = await session.execute(
-                            select(CardMetadata).where(CardMetadata.card_id == price.card_id)
+                        # 6. TREND CLASSIFICATION (Section 4.3)
+                        # PHASE_2_STUB: Hardcoded price_trend=0 — needs 7-day price history from multiple poll cycles.
+                        trend_cls, trend_suppress = classify_trend(
+                            vel_score, Decimal("0.00")
                         )
-                        metadata = meta_res.scalar()
+                        if trend_suppress:
+                            continue
+                        filter_counts["trend"] += 1
+
+                        # 7. MATURITY DECAY (Section 4.2.2)
                         if metadata and metadata.set_release_date:
                             decay = calculate_maturity_decay(metadata.set_release_date)
                         else:
                             decay = Decimal("1.0")
                         filter_counts["maturity"] += 1
 
-                        # 7. ROTATION RISK (Section 7)
+                        # 8. ROTATION RISK (Section 7)
                         reg_mark = metadata.regulation_mark if metadata else None
                         legality = metadata.legality_standard if metadata else None
                         rotation = check_rotation_risk(reg_mark, legality)
@@ -132,9 +156,28 @@ class SignalGenerator:
                             continue
                         filter_counts["rotation"] += 1
 
-                        # 8. HEADACHE SCORE (Section 4.4)
+                        # 9. HEADACHE SCORE (Section 4.4)
                         headache, h_tier = calculate_headache_score(profit["net_profit"], 1)
                         filter_counts["headache"] += 1
+
+                        # 10. BUNDLE LOGIC (Section 4.5)
+                        # PHASE_2_STUB: Hardcoded seller_card_count=1 — needs seller stock queries via Layer 3 scraping.
+                        bundle_result = calculate_seller_density_score(
+                            seller_card_count=1,
+                            card_price_usd=price.price_usd,
+                            net_profit=profit["net_profit"],
+                        )
+                        if bundle_result.suppress:
+                            continue
+                        filter_counts["bundle"] += 1
+
+                        # Build deep links
+                        urls = build_signal_urls(
+                            card_name=metadata.name if metadata else "Unknown",
+                            set_name=metadata.set_name if metadata else None,
+                            tcgplayer_url=metadata.tcgplayer_url if metadata else None,
+                            cardmarket_url=metadata.cardmarket_url if metadata else None,
+                        )
 
                         # Build signal with real data
                         signals.append({
@@ -147,12 +190,14 @@ class SignalGenerator:
                             "maturity_decay": decay,
                             "headache_tier": h_tier,
                             "headache_score": headache,
-                            "condition": CardmarketGrade.NEAR_MINT.value,
+                            "condition": condition_grade.value,
                             "cm_price_eur": price.price_eur,
                             "tcg_price_usd": price.price_usd,
                             "rotation_risk": rotation,
-                            "tcgplayer_url": metadata.tcgplayer_url if metadata else "",
-                            "cardmarket_url": metadata.cardmarket_url if metadata else "",
+                            "trend_classification": trend_cls.value,
+                            "bundle_tier": bundle_result.tier.value,
+                            "tcgplayer_url": urls["tcgplayer_url"],
+                            "cardmarket_url": urls["cardmarket_url"],
                             "created_at": datetime.now(timezone.utc).isoformat(),
                             "audit_snapshot": {
                                 "prices": {
@@ -169,6 +214,8 @@ class SignalGenerator:
                                     "velocity": str(vel_score),
                                     "maturity": str(decay),
                                     "headache": str(headache),
+                                    "trend": trend_cls.value,
+                                    "bundle_sds": str(bundle_result.sds),
                                 },
                             },
                         })
